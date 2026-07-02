@@ -134,6 +134,7 @@ function makeLootlabsUrl(sid) {
   }
 
   const joiner = base.includes("?") ? "&" : "?";
+
   return `${base}${joiner}puid=${encodeURIComponent(sid)}`;
 }
 
@@ -152,6 +153,41 @@ function jsonError(res, status, message, extra = {}) {
     message,
     ...extra,
   });
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie || "";
+  const cookies = {};
+
+  header.split(";").forEach((part) => {
+    const index = part.indexOf("=");
+
+    if (index === -1) return;
+
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch {
+      cookies[key] = value;
+    }
+  });
+
+  return cookies;
+}
+
+function setKeyCookies(res, sid, uid) {
+  const maxAge = SESSION_TTL_MINUTES * 60;
+
+  res.setHeader("Set-Cookie", [
+    `ks_sid=${encodeURIComponent(
+      sid
+    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+    `ks_uid=${encodeURIComponent(
+      uid
+    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+  ]);
 }
 
 const publicLimiter = rateLimit({
@@ -174,74 +210,18 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "roblox-lootlabs-supabase-keysystem",
-    endpoints: ["/start", "/claim", "/verify", "/complete"],
+    render: "https://cr7-ot2q.onrender.com",
+    endpoints: ["/get-key", "/complete", "/site-claim", "/verify"],
   });
 });
 
-app.get("/complete", (req, res) => {
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-
-  res.end(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Completed</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: #08080c;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
-
-    .box {
-      width: min(92vw, 520px);
-      padding: 28px;
-      border-radius: 20px;
-      background: #111118;
-      border: 1px solid #252532;
-      box-shadow: 0 20px 70px rgba(0, 0, 0, .45);
-      text-align: center;
-    }
-
-    h1 {
-      margin: 0 0 12px;
-      font-size: 28px;
-    }
-
-    p {
-      margin: 0;
-      color: #b8b8c6;
-      line-height: 1.5;
-    }
-
-    code {
-      background: #1e1e29;
-      padding: 4px 8px;
-      border-radius: 8px;
-      color: white;
-    }
-  </style>
-</head>
-<body>
-  <div class="box">
-    <h1>Completed</h1>
-    <p>Вернись в Roblox и нажми <code>Claim Key</code>.</p>
-  </div>
-</body>
-</html>`);
-});
-
-app.get("/start", strictLimiter, async (req, res) => {
+app.get("/get-key", strictLimiter, async (req, res) => {
   try {
     const uid = normalizeUid(req.query.uid);
 
     if (!uid) {
-      return jsonError(res, 400, "Bad uid");
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.status(400).end("Bad uid");
     }
 
     const createdAt = now();
@@ -260,18 +240,325 @@ app.get("/start", strictLimiter, async (req, res) => {
     });
 
     if (error) {
-      console.error("SUPABASE_START_ERROR", error);
+      console.error("GET_KEY_INSERT_ERROR", error);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.status(500).end("Database error");
+    }
+
+    setKeyCookies(res, sid, uid);
+
+    return res.redirect(makeLootlabsUrl(sid));
+  } catch (err) {
+    console.error("GET_KEY_ERROR", err);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(500).end("Server error");
+  }
+});
+
+app.get("/complete", (req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+
+  res.end(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Your Key</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #171722, #07070b 60%);
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .box {
+      width: min(92vw, 560px);
+      padding: 28px;
+      border-radius: 22px;
+      background: rgba(17, 17, 24, 0.95);
+      border: 1px solid #292938;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, .55);
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 28px;
+    }
+
+    p {
+      margin: 0;
+      color: #b8b8c6;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    .key {
+      margin-top: 18px;
+      padding: 16px;
+      border-radius: 15px;
+      background: #1d1d27;
+      border: 1px solid #343448;
+      font-size: 18px;
+      line-height: 1.45;
+      word-break: break-all;
+      user-select: all;
+      display: none;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      height: 48px;
+      border: 0;
+      border-radius: 15px;
+      background: #ffffff;
+      color: #050508;
+      font-weight: 800;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 14px;
+      color: #b8b8c6;
+      font-size: 14px;
+      line-height: 1.4;
+      min-height: 20px;
+    }
+
+    .small {
+      margin-top: 16px;
+      color: #77778a;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="box">
+    <h1>LootLabs completed</h1>
+
+    <p>
+      Нажми кнопку ниже, чтобы получить ключ.
+      Потом скопируй его и вставь в Roblox.
+    </p>
+
+    <button id="btn">Show Key</button>
+
+    <div id="key" class="key"></div>
+    <div id="status" class="status">Waiting...</div>
+
+    <div class="small">
+      Если ключ не появился сразу, подожди 5 секунд и нажми Try Again.
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("btn");
+    const keyBox = document.getElementById("key");
+    const statusBox = document.getElementById("status");
+
+    let currentKey = "";
+
+    async function copyKey() {
+      if (!currentKey) return;
+
+      try {
+        await navigator.clipboard.writeText(currentKey);
+        statusBox.textContent = "Copied. Paste it in Roblox.";
+      } catch (e) {
+        statusBox.textContent = "Copy manually.";
+      }
+    }
+
+    async function claim() {
+      btn.disabled = true;
+      btn.textContent = "Loading...";
+      statusBox.textContent = "Checking LootLabs completion...";
+
+      try {
+        const res = await fetch("/site-claim", {
+          method: "GET",
+          credentials: "include"
+        });
+
+        const data = await res.json();
+
+        if (data.ok && data.key) {
+          currentKey = data.key;
+
+          keyBox.style.display = "block";
+          keyBox.textContent = data.key;
+
+          statusBox.textContent = "Key ready. Paste it in Roblox.";
+
+          try {
+            await navigator.clipboard.writeText(data.key);
+            statusBox.textContent = "Key copied. Paste it in Roblox.";
+          } catch (e) {}
+
+          btn.textContent = "Copy Key";
+          btn.disabled = false;
+          btn.onclick = copyKey;
+
+          return;
+        }
+
+        if (data.pending) {
+          statusBox.textContent =
+            "LootLabs postback has not arrived yet. Wait 5 seconds and press again.";
+
+          btn.textContent = "Try Again";
+          btn.disabled = false;
+          btn.onclick = claim;
+
+          return;
+        }
+
+        statusBox.textContent = data.message || "Failed to get key.";
+        btn.textContent = "Try Again";
+        btn.disabled = false;
+        btn.onclick = claim;
+      } catch (err) {
+        statusBox.textContent = "Request failed. Try again.";
+        btn.textContent = "Try Again";
+        btn.disabled = false;
+        btn.onclick = claim;
+      }
+    }
+
+    btn.onclick = claim;
+
+    setTimeout(claim, 800);
+  </script>
+</body>
+</html>`);
+});
+
+app.get("/site-claim", strictLimiter, async (req, res) => {
+  try {
+    const cookies = parseCookies(req);
+
+    const sid = normalizeSid(cookies.ks_sid);
+    const uid = normalizeUid(cookies.ks_uid);
+
+    if (!sid || !uid) {
+      return res.json({
+        ok: false,
+        message: "Session not found. Open Get Key from Roblox again.",
+      });
+    }
+
+    const { data: session, error: sessionError } = await supabase
+      .from("key_sessions")
+      .select("*")
+      .eq("sid", sid)
+      .eq("uid", uid)
+      .maybeSingle();
+
+    if (sessionError) {
+      console.error("SITE_CLAIM_SESSION_ERROR", sessionError);
       return jsonError(res, 500, "Database error");
+    }
+
+    if (!session) {
+      return res.json({
+        ok: false,
+        message: "Session not found. Open Get Key from Roblox again.",
+      });
+    }
+
+    if (new Date(session.expires_at) <= now()) {
+      return res.json({
+        ok: false,
+        message: "Session expired. Open Get Key from Roblox again.",
+      });
+    }
+
+    if (!session.completed) {
+      return res.json({
+        ok: false,
+        pending: true,
+        message: "Complete LootLabs first",
+      });
+    }
+
+    if (session.claimed && session.display_key) {
+      return res.json({
+        ok: true,
+        key: session.display_key,
+        expiresAt: session.key_expires_at,
+      });
+    }
+
+    if (session.claimed && !session.display_key) {
+      return res.json({
+        ok: false,
+        message: "Key already claimed. Open Get Key from Roblox again.",
+      });
+    }
+
+    const key = makeKey();
+    const keyHash = hashKey(key);
+    const keyCreatedAt = now();
+    const keyExpiresAt = addHours(keyCreatedAt, KEY_TTL_HOURS);
+
+    const { error: keyInsertError } = await supabase.from("keys").insert({
+      key_hash: keyHash,
+      uid,
+      sid,
+      active: true,
+      created_at: keyCreatedAt.toISOString(),
+      expires_at: keyExpiresAt.toISOString(),
+      used_count: 0,
+    });
+
+    if (keyInsertError) {
+      console.error("SITE_CLAIM_KEY_INSERT_ERROR", keyInsertError);
+      return jsonError(res, 500, "Failed to create key");
+    }
+
+    const { error: updateError } = await supabase
+      .from("key_sessions")
+      .update({
+        claimed: true,
+        claimed_at: keyCreatedAt.toISOString(),
+        key_hash: keyHash,
+        key_created_at: keyCreatedAt.toISOString(),
+        key_expires_at: keyExpiresAt.toISOString(),
+        display_key: key,
+      })
+      .eq("sid", sid)
+      .eq("uid", uid);
+
+    if (updateError) {
+      console.error("SITE_CLAIM_UPDATE_ERROR", updateError);
+      return jsonError(res, 500, "Failed to save key");
     }
 
     return res.json({
       ok: true,
-      sid,
-      lootlabsUrl: makeLootlabsUrl(sid),
-      expiresInMinutes: SESSION_TTL_MINUTES,
+      key,
+      expiresInHours: KEY_TTL_HOURS,
+      expiresAt: keyExpiresAt.toISOString(),
     });
   } catch (err) {
-    console.error("START_ERROR", err);
+    console.error("SITE_CLAIM_ERROR", err);
     return jsonError(res, 500, "Server error");
   }
 });
@@ -333,15 +620,17 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
 
     const createdAt = now();
 
-    const { error: postbackInsertError } = await supabase.from("postbacks").insert({
-      unique_id: uniqueId,
-      sid,
-      uid: session.uid,
-      lootlabs_ip: lootlabsIp,
-      request_ip: clientIp(req),
-      query: req.query,
-      created_at: createdAt.toISOString(),
-    });
+    const { error: postbackInsertError } = await supabase
+      .from("postbacks")
+      .insert({
+        unique_id: uniqueId,
+        sid,
+        uid: session.uid,
+        lootlabs_ip: lootlabsIp,
+        request_ip: clientIp(req),
+        query: req.query,
+        created_at: createdAt.toISOString(),
+      });
 
     if (postbackInsertError) {
       if (postbackInsertError.code === "23505") {
@@ -375,133 +664,6 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
     });
   } catch (err) {
     console.error("POSTBACK_ERROR", err);
-    return jsonError(res, 500, "Server error");
-  }
-});
-
-app.get("/claim", strictLimiter, async (req, res) => {
-  try {
-    const sid = normalizeSid(req.query.sid);
-    const uid = normalizeUid(req.query.uid);
-
-    if (!sid || !uid) {
-      return jsonError(res, 400, "Bad request");
-    }
-
-    const claimTime = now();
-
-    const { data: updatedSessions, error: updateError } = await supabase
-      .from("key_sessions")
-      .update({
-        claimed: true,
-        claimed_at: claimTime.toISOString(),
-      })
-      .eq("sid", sid)
-      .eq("uid", uid)
-      .eq("completed", true)
-      .eq("claimed", false)
-      .gt("expires_at", claimTime.toISOString())
-      .select("*");
-
-    if (updateError) {
-      console.error("SUPABASE_CLAIM_UPDATE_ERROR", updateError);
-      return jsonError(res, 500, "Database error");
-    }
-
-    const session = updatedSessions && updatedSessions[0];
-
-    if (!session) {
-      const { data: existing, error: existingError } = await supabase
-        .from("key_sessions")
-        .select("*")
-        .eq("sid", sid)
-        .eq("uid", uid)
-        .maybeSingle();
-
-      if (existingError) {
-        console.error("SUPABASE_CLAIM_EXISTING_ERROR", existingError);
-        return jsonError(res, 500, "Database error");
-      }
-
-      if (!existing) {
-        return jsonError(res, 404, "Session not found");
-      }
-
-      if (new Date(existing.expires_at) <= now()) {
-        return jsonError(res, 410, "Session expired. Press Get Key again.");
-      }
-
-      if (!existing.completed) {
-        return res.json({
-          ok: false,
-          pending: true,
-          message: "Complete LootLabs first",
-        });
-      }
-
-      if (existing.claimed) {
-        return jsonError(
-          res,
-          409,
-          "Key already claimed. Press Get Key again for a new key."
-        );
-      }
-
-      return jsonError(res, 400, "Cannot claim key");
-    }
-
-    const key = makeKey();
-    const keyHash = hashKey(key);
-    const keyCreatedAt = now();
-    const keyExpiresAt = addHours(keyCreatedAt, KEY_TTL_HOURS);
-
-    const { error: keyInsertError } = await supabase.from("keys").insert({
-      key_hash: keyHash,
-      uid,
-      sid,
-      active: true,
-      created_at: keyCreatedAt.toISOString(),
-      expires_at: keyExpiresAt.toISOString(),
-      used_count: 0,
-    });
-
-    if (keyInsertError) {
-      console.error("SUPABASE_KEY_INSERT_ERROR", keyInsertError);
-
-      await supabase
-        .from("key_sessions")
-        .update({
-          claimed: false,
-          claimed_at: null,
-        })
-        .eq("sid", sid)
-        .eq("uid", uid);
-
-      return jsonError(res, 500, "Failed to create key");
-    }
-
-    const { error: sessionKeyUpdateError } = await supabase
-      .from("key_sessions")
-      .update({
-        key_hash: keyHash,
-        key_created_at: keyCreatedAt.toISOString(),
-        key_expires_at: keyExpiresAt.toISOString(),
-      })
-      .eq("sid", sid)
-      .eq("uid", uid);
-
-    if (sessionKeyUpdateError) {
-      console.error("SUPABASE_SESSION_KEY_UPDATE_ERROR", sessionKeyUpdateError);
-    }
-
-    return res.json({
-      ok: true,
-      key,
-      expiresInHours: KEY_TTL_HOURS,
-      expiresAt: keyExpiresAt.toISOString(),
-    });
-  } catch (err) {
-    console.error("CLAIM_ERROR", err);
     return jsonError(res, 500, "Server error");
   }
 });
