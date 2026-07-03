@@ -88,11 +88,7 @@ function normalizeUid(uid) {
 function normalizeSid(sid) {
   sid = String(sid || "").trim().toLowerCase();
 
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
-      sid
-    )
-  ) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sid)) {
     return null;
   }
 
@@ -143,7 +139,6 @@ function makeLootlabsUrl(sid) {
   }
 
   const joiner = base.includes("?") ? "&" : "?";
-
   return `${base}${joiner}puid=${encodeURIComponent(sid)}`;
 }
 
@@ -190,13 +185,48 @@ function setKeyCookies(res, sid, uid) {
   const maxAge = SESSION_TTL_MINUTES * 60;
 
   res.setHeader("Set-Cookie", [
-    `ks_sid=${encodeURIComponent(
-      sid
-    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
-    `ks_uid=${encodeURIComponent(
-      uid
-    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+    `ks_sid=${encodeURIComponent(sid)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+    `ks_uid=${encodeURIComponent(uid)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
   ]);
+}
+
+async function getSessionByCookies(req) {
+  const cookies = parseCookies(req);
+
+  const sid = normalizeSid(cookies.ks_sid);
+  const uid = normalizeUid(cookies.ks_uid);
+
+  if (!sid || !uid) {
+    return {
+      sid: null,
+      uid: null,
+      session: null,
+      error: "No session",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("key_sessions")
+    .select("*")
+    .eq("sid", sid)
+    .eq("uid", uid)
+    .maybeSingle();
+
+  if (error) {
+    return {
+      sid,
+      uid,
+      session: null,
+      error: "Database error",
+    };
+  }
+
+  return {
+    sid,
+    uid,
+    session: data,
+    error: null,
+  };
 }
 
 const publicLimiter = rateLimit({
@@ -218,15 +248,7 @@ app.use(publicLimiter);
 app.get("/", (req, res) => {
   res.json({
     ok: true,
-    service: "roblox-lootlabs-supabase-keysystem",
-    endpoints: [
-      "/get-key",
-      "/complete",
-      "/site-claim",
-      "/verify",
-      "/session-debug",
-      "/lootlabs/postback/:secret",
-    ],
+    service: "key-system",
   });
 });
 
@@ -244,11 +266,6 @@ app.get("/get-key", strictLimiter, async (req, res) => {
     const sid = crypto.randomUUID();
 
     const lootlabsUrl = makeLootlabsUrl(sid);
-
-    console.log("GET_KEY CREATED");
-    console.log("UID:", uid);
-    console.log("SID:", sid);
-    console.log("LOOTLABS URL:", lootlabsUrl);
 
     const { error } = await supabase.from("key_sessions").insert({
       sid,
@@ -277,6 +294,28 @@ app.get("/get-key", strictLimiter, async (req, res) => {
   }
 });
 
+app.get("/continue", strictLimiter, async (req, res) => {
+  try {
+    const result = await getSessionByCookies(req);
+
+    if (!result.sid || !result.uid || !result.session) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.status(400).end("Open Get Key from Roblox first.");
+    }
+
+    if (new Date(result.session.expires_at) <= now()) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.status(410).end("Session expired. Open Get Key from Roblox again.");
+    }
+
+    return res.redirect(makeLootlabsUrl(result.sid));
+  } catch (err) {
+    console.error("CONTINUE_ERROR", err);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(500).end("Server error");
+  }
+});
+
 app.get("/complete", (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
 
@@ -284,9 +323,8 @@ app.get("/complete", (req, res) => {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Your Key</title>
+  <title>Key System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <style>
     * {
       box-sizing: border-box;
@@ -297,56 +335,55 @@ app.get("/complete", (req, res) => {
       min-height: 100vh;
       display: grid;
       place-items: center;
-      background: radial-gradient(circle at top, #171722, #07070b 60%);
-      color: white;
+      background: #09090d;
+      color: #ffffff;
       font-family: Arial, sans-serif;
     }
 
     .box {
-      width: min(92vw, 560px);
-      padding: 28px;
-      border-radius: 22px;
-      background: rgba(17, 17, 24, 0.95);
-      border: 1px solid #292938;
-      box-shadow: 0 25px 80px rgba(0, 0, 0, .55);
+      width: min(92vw, 480px);
+      padding: 24px;
+      border-radius: 16px;
+      background: #14141b;
+      border: 1px solid #2a2a36;
       text-align: center;
     }
 
     h1 {
-      margin: 0 0 12px;
-      font-size: 28px;
+      margin: 0 0 10px;
+      font-size: 24px;
     }
 
     p {
       margin: 0;
-      color: #b8b8c6;
-      line-height: 1.5;
-      font-size: 15px;
+      color: #b7b7c4;
+      line-height: 1.45;
+      font-size: 14px;
     }
 
     .key {
+      display: none;
       margin-top: 18px;
-      padding: 16px;
-      border-radius: 15px;
-      background: #1d1d27;
-      border: 1px solid #343448;
-      font-size: 18px;
+      padding: 14px;
+      border-radius: 12px;
+      background: #20202a;
+      border: 1px solid #353545;
+      font-size: 16px;
       line-height: 1.45;
       word-break: break-all;
       user-select: all;
-      display: none;
     }
 
     button {
-      margin-top: 20px;
+      margin-top: 18px;
       width: 100%;
-      height: 48px;
+      height: 44px;
       border: 0;
-      border-radius: 15px;
+      border-radius: 12px;
       background: #ffffff;
-      color: #050508;
-      font-weight: 800;
-      font-size: 15px;
+      color: #09090d;
+      font-weight: 700;
+      font-size: 14px;
       cursor: pointer;
     }
 
@@ -356,38 +393,23 @@ app.get("/complete", (req, res) => {
     }
 
     .status {
-      margin-top: 14px;
-      color: #b8b8c6;
-      font-size: 14px;
-      line-height: 1.4;
-      min-height: 20px;
-    }
-
-    .small {
-      margin-top: 16px;
-      color: #77778a;
-      font-size: 12px;
+      margin-top: 12px;
+      color: #b7b7c4;
+      font-size: 13px;
+      min-height: 18px;
+      line-height: 1.35;
     }
   </style>
 </head>
-
 <body>
   <div class="box">
-    <h1>LootLabs completed</h1>
+    <h1>Your Key</h1>
+    <p>Complete LootLabs, then copy your key and paste it in Roblox.</p>
 
-    <p>
-      Нажми кнопку ниже, чтобы получить ключ.
-      Потом скопируй его и вставь в Roblox.
-    </p>
-
-    <button id="btn">Show Key</button>
+    <button id="btn">Checking...</button>
 
     <div id="key" class="key"></div>
-    <div id="status" class="status">Waiting...</div>
-
-    <div class="small">
-      Если ключ не появился сразу, подожди 5 секунд и нажми Try Again.
-    </div>
+    <div id="status" class="status">Please wait...</div>
   </div>
 
   <script>
@@ -396,6 +418,8 @@ app.get("/complete", (req, res) => {
     const statusBox = document.getElementById("status");
 
     let currentKey = "";
+    let attempts = 0;
+    const maxAttempts = 8;
 
     async function copyKey() {
       if (!currentKey) return;
@@ -408,10 +432,11 @@ app.get("/complete", (req, res) => {
       }
     }
 
-    async function claim() {
+    async function check() {
+      attempts += 1;
       btn.disabled = true;
-      btn.textContent = "Loading...";
-      statusBox.textContent = "Checking LootLabs completion...";
+      btn.textContent = "Checking...";
+      statusBox.textContent = "Waiting for confirmation...";
 
       try {
         const res = await fetch("/site-claim", {
@@ -423,50 +448,50 @@ app.get("/complete", (req, res) => {
 
         if (data.ok && data.key) {
           currentKey = data.key;
-
           keyBox.style.display = "block";
           keyBox.textContent = data.key;
-
-          statusBox.textContent = "Key ready. Paste it in Roblox.";
 
           try {
             await navigator.clipboard.writeText(data.key);
             statusBox.textContent = "Key copied. Paste it in Roblox.";
-          } catch (e) {}
+          } catch (e) {
+            statusBox.textContent = "Key ready. Copy it manually.";
+          }
 
           btn.textContent = "Copy Key";
           btn.disabled = false;
           btn.onclick = copyKey;
-
           return;
         }
 
         if (data.pending) {
-          statusBox.textContent =
-            "LootLabs postback has not arrived yet. Wait 5 seconds and press again.";
+          if (attempts < maxAttempts) {
+            statusBox.textContent = "Waiting for LootLabs postback...";
+            setTimeout(check, 2000);
+            return;
+          }
 
-          btn.textContent = "Try Again";
-          btn.disabled = false;
-          btn.onclick = claim;
-
+          statusBox.textContent = "Confirmation not found. Redirecting to LootLabs...";
+          setTimeout(function () {
+            window.location.href = "/continue";
+          }, 1200);
           return;
         }
 
         statusBox.textContent = data.message || "Failed to get key.";
         btn.textContent = "Try Again";
         btn.disabled = false;
-        btn.onclick = claim;
-      } catch (err) {
-        statusBox.textContent = "Request failed. Try again.";
+        btn.onclick = check;
+      } catch (e) {
+        statusBox.textContent = "Request failed.";
         btn.textContent = "Try Again";
         btn.disabled = false;
-        btn.onclick = claim;
+        btn.onclick = check;
       }
     }
 
-    btn.onclick = claim;
-
-    setTimeout(claim, 800);
+    btn.onclick = check;
+    setTimeout(check, 500);
   </script>
 </body>
 </html>`);
@@ -474,49 +499,18 @@ app.get("/complete", (req, res) => {
 
 app.get("/site-claim", strictLimiter, async (req, res) => {
   try {
-    const cookies = parseCookies(req);
+    const result = await getSessionByCookies(req);
 
-    const sid = normalizeSid(cookies.ks_sid);
-    const uid = normalizeUid(cookies.ks_uid);
+    const sid = result.sid;
+    const uid = result.uid;
+    const session = result.session;
 
-    console.log("SITE_CLAIM");
-    console.log("COOKIE SID:", sid);
-    console.log("COOKIE UID:", uid);
-
-    if (!sid || !uid) {
+    if (!sid || !uid || !session) {
       return res.json({
         ok: false,
-        message: "Session not found. Open Get Key from Roblox again.",
+        message: "Open Get Key from Roblox first.",
       });
     }
-
-    const { data: session, error: sessionError } = await supabase
-      .from("key_sessions")
-      .select("*")
-      .eq("sid", sid)
-      .eq("uid", uid)
-      .maybeSingle();
-
-    if (sessionError) {
-      console.error("SITE_CLAIM_SESSION_ERROR", sessionError);
-      return jsonError(res, 500, "Database error");
-    }
-
-    if (!session) {
-      return res.json({
-        ok: false,
-        message: "Session not found. Open Get Key from Roblox again.",
-      });
-    }
-
-    console.log("SITE_CLAIM SESSION:", {
-      sid: session.sid,
-      uid: session.uid,
-      completed: session.completed,
-      claimed: session.claimed,
-      expires_at: session.expires_at,
-      lootlabs_unique_id: session.lootlabs_unique_id,
-    });
 
     if (new Date(session.expires_at) <= now()) {
       return res.json({
@@ -529,7 +523,7 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
       return res.json({
         ok: false,
         pending: true,
-        message: "Complete LootLabs first",
+        message: "Waiting for LootLabs confirmation.",
       });
     }
 
@@ -586,12 +580,6 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
       return jsonError(res, 500, "Failed to save key");
     }
 
-    console.log("KEY CREATED:", {
-      sid,
-      uid,
-      expiresAt: keyExpiresAt.toISOString(),
-    });
-
     return res.json({
       ok: true,
       key,
@@ -605,15 +593,8 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
 });
 
 app.get("/lootlabs/postback/:secret", async (req, res) => {
-  console.log("POSTBACK HIT");
-  console.log("POSTBACK SECRET:", req.params.secret);
-  console.log("POSTBACK URL:", req.originalUrl);
-  console.log("POSTBACK QUERY:", req.query);
-
   try {
     if (req.params.secret !== POSTBACK_SECRET) {
-      console.log("POSTBACK FORBIDDEN: bad secret");
-
       return jsonError(res, 403, "Forbidden");
     }
 
@@ -633,44 +614,26 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
     const uniqueId = String(rawUniqueId).trim();
     const lootlabsIp = String(rawIp).trim();
 
-    console.log("POSTBACK PARSED:", {
-      rawSid,
-      sid,
-      uniqueId,
-      lootlabsIp,
-    });
-
     if (!sid) {
-      console.log("POSTBACK ERROR: missing or bad click_id");
-
-      return jsonError(res, 400, "Missing or bad click_id", {
-        rawSid,
-        query: req.query,
-      });
+      return jsonError(res, 400, "Missing or bad click_id");
     }
 
     if (!uniqueId || uniqueId.length > 200) {
-      console.log("POSTBACK ERROR: missing unique_id");
-
-      return jsonError(res, 400, "Missing unique_id", {
-        query: req.query,
-      });
+      return jsonError(res, 400, "Missing unique_id");
     }
 
     const { data: duplicate, error: duplicateError } = await supabase
       .from("postbacks")
-      .select("id, sid, unique_id")
+      .select("id")
       .eq("unique_id", uniqueId)
       .maybeSingle();
 
     if (duplicateError) {
-      console.error("SUPABASE_DUPLICATE_CHECK_ERROR", duplicateError);
+      console.error("DUPLICATE_CHECK_ERROR", duplicateError);
       return jsonError(res, 500, "Database error");
     }
 
     if (duplicate) {
-      console.log("POSTBACK DUPLICATE:", duplicate);
-
       return res.json({
         ok: true,
         duplicate: true,
@@ -684,55 +647,39 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
       .maybeSingle();
 
     if (sessionError) {
-      console.error("SUPABASE_SESSION_READ_ERROR", sessionError);
+      console.error("SESSION_READ_ERROR", sessionError);
       return jsonError(res, 500, "Database error");
     }
 
     if (!session) {
-      console.log("POSTBACK ERROR: session not found", sid);
-
-      return jsonError(res, 404, "Session not found", {
-        sid,
-      });
+      return jsonError(res, 404, "Session not found");
     }
 
     if (new Date(session.expires_at) <= now()) {
-      console.log("POSTBACK ERROR: session expired", {
-        sid,
-        expires_at: session.expires_at,
-      });
-
-      return jsonError(res, 410, "Session expired", {
-        sid,
-        expires_at: session.expires_at,
-      });
+      return jsonError(res, 410, "Session expired");
     }
 
     const createdAt = now();
 
-    const { error: postbackInsertError } = await supabase
-      .from("postbacks")
-      .insert({
-        unique_id: uniqueId,
-        sid,
-        uid: session.uid,
-        lootlabs_ip: lootlabsIp,
-        request_ip: clientIp(req),
-        query: req.query,
-        created_at: createdAt.toISOString(),
-      });
+    const { error: postbackInsertError } = await supabase.from("postbacks").insert({
+      unique_id: uniqueId,
+      sid,
+      uid: session.uid,
+      lootlabs_ip: lootlabsIp,
+      request_ip: clientIp(req),
+      query: req.query,
+      created_at: createdAt.toISOString(),
+    });
 
     if (postbackInsertError) {
       if (postbackInsertError.code === "23505") {
-        console.log("POSTBACK DUPLICATE INSERT");
-
         return res.json({
           ok: true,
           duplicate: true,
         });
       }
 
-      console.error("SUPABASE_POSTBACK_INSERT_ERROR", postbackInsertError);
+      console.error("POSTBACK_INSERT_ERROR", postbackInsertError);
       return jsonError(res, 500, "Database error");
     }
 
@@ -747,15 +694,9 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
       .eq("sid", sid);
 
     if (updateError) {
-      console.error("SUPABASE_SESSION_UPDATE_ERROR", updateError);
+      console.error("SESSION_UPDATE_ERROR", updateError);
       return jsonError(res, 500, "Database error");
     }
-
-    console.log("POSTBACK SUCCESS:", {
-      sid,
-      uid: session.uid,
-      uniqueId,
-    });
 
     return res.json({
       ok: true,
@@ -784,7 +725,7 @@ app.get("/verify", strictLimiter, async (req, res) => {
       .maybeSingle();
 
     if (error) {
-      console.error("SUPABASE_VERIFY_READ_ERROR", error);
+      console.error("VERIFY_READ_ERROR", error);
       return jsonError(res, 500, "Database error");
     }
 
@@ -838,42 +779,21 @@ app.get("/verify", strictLimiter, async (req, res) => {
 
 app.get("/session-debug", async (req, res) => {
   try {
-    const cookies = parseCookies(req);
+    const result = await getSessionByCookies(req);
 
-    const sid = normalizeSid(cookies.ks_sid);
-    const uid = normalizeUid(cookies.ks_uid);
-
-    if (!sid || !uid) {
+    if (!result.sid || !result.uid) {
       return res.json({
         ok: false,
         message: "No session cookies",
-        cookiesFound: Object.keys(cookies),
         rawCookieHeader: req.headers.cookie || null,
-      });
-    }
-
-    const { data: session, error } = await supabase
-      .from("key_sessions")
-      .select(
-        "sid, uid, completed, claimed, created_at, completed_at, expires_at, lootlabs_unique_id, display_key, key_expires_at"
-      )
-      .eq("sid", sid)
-      .eq("uid", uid)
-      .maybeSingle();
-
-    if (error) {
-      return res.json({
-        ok: false,
-        message: "Database error",
-        error,
       });
     }
 
     return res.json({
       ok: true,
-      cookieSid: sid,
-      cookieUid: uid,
-      session,
+      cookieSid: result.sid,
+      cookieUid: result.uid,
+      session: result.session,
     });
   } catch (err) {
     return res.json({
