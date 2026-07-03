@@ -17,6 +17,7 @@ app.use(
     crossOriginResourcePolicy: false,
   })
 );
+
 app.use(cors());
 app.use(express.json({ limit: "32kb" }));
 
@@ -106,6 +107,14 @@ function normalizeKey(key) {
   }
 
   return key;
+}
+
+function firstQueryValue(value) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
 }
 
 function randomChars(length) {
@@ -210,8 +219,14 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "roblox-lootlabs-supabase-keysystem",
-    render: "https://cr7-ot2q.onrender.com",
-    endpoints: ["/get-key", "/complete", "/site-claim", "/verify"],
+    endpoints: [
+      "/get-key",
+      "/complete",
+      "/site-claim",
+      "/verify",
+      "/session-debug",
+      "/lootlabs/postback/:secret",
+    ],
   });
 });
 
@@ -227,6 +242,13 @@ app.get("/get-key", strictLimiter, async (req, res) => {
     const createdAt = now();
     const expiresAt = addMinutes(createdAt, SESSION_TTL_MINUTES);
     const sid = crypto.randomUUID();
+
+    const lootlabsUrl = makeLootlabsUrl(sid);
+
+    console.log("GET_KEY CREATED");
+    console.log("UID:", uid);
+    console.log("SID:", sid);
+    console.log("LOOTLABS URL:", lootlabsUrl);
 
     const { error } = await supabase.from("key_sessions").insert({
       sid,
@@ -247,7 +269,7 @@ app.get("/get-key", strictLimiter, async (req, res) => {
 
     setKeyCookies(res, sid, uid);
 
-    return res.redirect(makeLootlabsUrl(sid));
+    return res.redirect(lootlabsUrl);
   } catch (err) {
     console.error("GET_KEY_ERROR", err);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -457,6 +479,10 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
     const sid = normalizeSid(cookies.ks_sid);
     const uid = normalizeUid(cookies.ks_uid);
 
+    console.log("SITE_CLAIM");
+    console.log("COOKIE SID:", sid);
+    console.log("COOKIE UID:", uid);
+
     if (!sid || !uid) {
       return res.json({
         ok: false,
@@ -482,6 +508,15 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
         message: "Session not found. Open Get Key from Roblox again.",
       });
     }
+
+    console.log("SITE_CLAIM SESSION:", {
+      sid: session.sid,
+      uid: session.uid,
+      completed: session.completed,
+      claimed: session.claimed,
+      expires_at: session.expires_at,
+      lootlabs_unique_id: session.lootlabs_unique_id,
+    });
 
     if (new Date(session.expires_at) <= now()) {
       return res.json({
@@ -551,6 +586,12 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
       return jsonError(res, 500, "Failed to save key");
     }
 
+    console.log("KEY CREATED:", {
+      sid,
+      uid,
+      expiresAt: keyExpiresAt.toISOString(),
+    });
+
     return res.json({
       ok: true,
       key,
@@ -564,26 +605,61 @@ app.get("/site-claim", strictLimiter, async (req, res) => {
 });
 
 app.get("/lootlabs/postback/:secret", async (req, res) => {
+  console.log("POSTBACK HIT");
+  console.log("POSTBACK SECRET:", req.params.secret);
+  console.log("POSTBACK URL:", req.originalUrl);
+  console.log("POSTBACK QUERY:", req.query);
+
   try {
     if (req.params.secret !== POSTBACK_SECRET) {
+      console.log("POSTBACK FORBIDDEN: bad secret");
+
       return jsonError(res, 403, "Forbidden");
     }
 
-    const sid = normalizeSid(req.query.click_id || req.query.puid || req.query.sid);
-    const uniqueId = String(req.query.unique_id || req.query.uniqueid || "").trim();
-    const lootlabsIp = String(req.query.ip || "").trim();
+    const rawSid =
+      firstQueryValue(req.query.click_id) ||
+      firstQueryValue(req.query.puid) ||
+      firstQueryValue(req.query.sid);
+
+    const rawUniqueId =
+      firstQueryValue(req.query.unique_id) ||
+      firstQueryValue(req.query.uniqueid) ||
+      "";
+
+    const rawIp = firstQueryValue(req.query.ip) || "";
+
+    const sid = normalizeSid(rawSid);
+    const uniqueId = String(rawUniqueId).trim();
+    const lootlabsIp = String(rawIp).trim();
+
+    console.log("POSTBACK PARSED:", {
+      rawSid,
+      sid,
+      uniqueId,
+      lootlabsIp,
+    });
 
     if (!sid) {
-      return jsonError(res, 400, "Missing or bad click_id");
+      console.log("POSTBACK ERROR: missing or bad click_id");
+
+      return jsonError(res, 400, "Missing or bad click_id", {
+        rawSid,
+        query: req.query,
+      });
     }
 
     if (!uniqueId || uniqueId.length > 200) {
-      return jsonError(res, 400, "Missing unique_id");
+      console.log("POSTBACK ERROR: missing unique_id");
+
+      return jsonError(res, 400, "Missing unique_id", {
+        query: req.query,
+      });
     }
 
     const { data: duplicate, error: duplicateError } = await supabase
       .from("postbacks")
-      .select("id")
+      .select("id, sid, unique_id")
       .eq("unique_id", uniqueId)
       .maybeSingle();
 
@@ -593,6 +669,8 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
     }
 
     if (duplicate) {
+      console.log("POSTBACK DUPLICATE:", duplicate);
+
       return res.json({
         ok: true,
         duplicate: true,
@@ -611,11 +689,23 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
     }
 
     if (!session) {
-      return jsonError(res, 404, "Session not found");
+      console.log("POSTBACK ERROR: session not found", sid);
+
+      return jsonError(res, 404, "Session not found", {
+        sid,
+      });
     }
 
     if (new Date(session.expires_at) <= now()) {
-      return jsonError(res, 410, "Session expired");
+      console.log("POSTBACK ERROR: session expired", {
+        sid,
+        expires_at: session.expires_at,
+      });
+
+      return jsonError(res, 410, "Session expired", {
+        sid,
+        expires_at: session.expires_at,
+      });
     }
 
     const createdAt = now();
@@ -634,6 +724,8 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
 
     if (postbackInsertError) {
       if (postbackInsertError.code === "23505") {
+        console.log("POSTBACK DUPLICATE INSERT");
+
         return res.json({
           ok: true,
           duplicate: true,
@@ -658,6 +750,12 @@ app.get("/lootlabs/postback/:secret", async (req, res) => {
       console.error("SUPABASE_SESSION_UPDATE_ERROR", updateError);
       return jsonError(res, 500, "Database error");
     }
+
+    console.log("POSTBACK SUCCESS:", {
+      sid,
+      uid: session.uid,
+      uniqueId,
+    });
 
     return res.json({
       ok: true,
@@ -735,6 +833,54 @@ app.get("/verify", strictLimiter, async (req, res) => {
   } catch (err) {
     console.error("VERIFY_ERROR", err);
     return jsonError(res, 500, "Server error");
+  }
+});
+
+app.get("/session-debug", async (req, res) => {
+  try {
+    const cookies = parseCookies(req);
+
+    const sid = normalizeSid(cookies.ks_sid);
+    const uid = normalizeUid(cookies.ks_uid);
+
+    if (!sid || !uid) {
+      return res.json({
+        ok: false,
+        message: "No session cookies",
+        cookiesFound: Object.keys(cookies),
+        rawCookieHeader: req.headers.cookie || null,
+      });
+    }
+
+    const { data: session, error } = await supabase
+      .from("key_sessions")
+      .select(
+        "sid, uid, completed, claimed, created_at, completed_at, expires_at, lootlabs_unique_id, display_key, key_expires_at"
+      )
+      .eq("sid", sid)
+      .eq("uid", uid)
+      .maybeSingle();
+
+    if (error) {
+      return res.json({
+        ok: false,
+        message: "Database error",
+        error,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      cookieSid: sid,
+      cookieUid: uid,
+      session,
+    });
+  } catch (err) {
+    return res.json({
+      ok: false,
+      message: "Server error",
+      error: String(err),
+    });
   }
 });
 
