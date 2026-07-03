@@ -249,7 +249,20 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     service: "key-system",
+    keyTtlHours: KEY_TTL_HOURS,
   });
+});
+
+app.get("/ping", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    status: "alive",
+    time: new Date().toISOString(),
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
 });
 
 app.get("/get-key", strictLimiter, async (req, res) => {
@@ -341,17 +354,17 @@ app.get("/complete", (req, res) => {
     }
 
     .box {
-      width: min(92vw, 480px);
-      padding: 24px;
-      border-radius: 16px;
+      width: min(92vw, 460px);
+      padding: 22px;
+      border-radius: 14px;
       background: #14141b;
       border: 1px solid #2a2a36;
       text-align: center;
     }
 
     h1 {
-      margin: 0 0 10px;
-      font-size: 24px;
+      margin: 0 0 8px;
+      font-size: 23px;
     }
 
     p {
@@ -363,9 +376,9 @@ app.get("/complete", (req, res) => {
 
     .key {
       display: none;
-      margin-top: 18px;
+      margin-top: 16px;
       padding: 14px;
-      border-radius: 12px;
+      border-radius: 10px;
       background: #20202a;
       border: 1px solid #353545;
       font-size: 16px;
@@ -375,11 +388,11 @@ app.get("/complete", (req, res) => {
     }
 
     button {
-      margin-top: 18px;
+      margin-top: 16px;
       width: 100%;
-      height: 44px;
+      height: 42px;
       border: 0;
-      border-radius: 12px;
+      border-radius: 10px;
       background: #ffffff;
       color: #09090d;
       font-weight: 700;
