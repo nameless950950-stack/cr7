@@ -30,7 +30,7 @@ const LOOTLABS_BASE_URL = process.env.LOOTLABS_BASE_URL;
 const POSTBACK_SECRET = process.env.POSTBACK_SECRET;
 const KEY_PEPPER = process.env.KEY_PEPPER;
 
-const KEY_TTL_HOURS = Number(process.env.KEY_TTL_HOURS || 24);
+const KEY_TTL_HOURS = Number(process.env.KEY_TTL_HOURS || 6);
 const SESSION_TTL_MINUTES = Number(process.env.SESSION_TTL_MINUTES || 60);
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
