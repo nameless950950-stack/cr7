@@ -33,6 +33,7 @@ const KEY_TTL_HOURS = Number(process.env.KEY_TTL_HOURS || 6);
 const SESSION_TTL_MINUTES = Number(
   process.env.SESSION_TTL_MINUTES || 60
 );
+
 const PUBLIC_ORIGIN = String(
   process.env.PUBLIC_ORIGIN || "https://nhhub.top"
 ).replace(/\/+$/, "");
@@ -214,6 +215,7 @@ function setKeyCookies(res, sid, uid) {
     `ks_sid=${encodeURIComponent(
       sid
     )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+
     `ks_uid=${encodeURIComponent(
       uid
     )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
@@ -278,18 +280,23 @@ app.use(publicLimiter);
 const siteCss = `
 :root {
   color-scheme: dark;
-  --bg: #050506;
-  --card: rgba(17, 17, 20, .82);
-  --soft: rgba(255, 255, 255, .045);
+  --bg: #070708;
+  --card: #0d0d0f;
+  --soft: #131316;
   --line: rgba(255, 255, 255, .1);
-  --text: #f8f8fa;
-  --muted: #9696a1;
-  --green: #91efb5;
-  --red: #ff9da8;
+  --line-strong: rgba(255, 255, 255, .18);
+  --text: #f5f5f7;
+  --muted: #85858f;
+  --green: #8fe3ae;
+  --red: #ff929e;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
 }
 
 body {
@@ -297,18 +304,7 @@ body {
   min-height: 100vh;
   min-height: 100svh;
   color: var(--text);
-  background:
-    radial-gradient(
-      circle at 16% 8%,
-      rgba(255, 255, 255, .08),
-      transparent 28rem
-    ),
-    radial-gradient(
-      circle at 86% 90%,
-      rgba(110, 110, 130, .1),
-      transparent 30rem
-    ),
-    var(--bg);
+  background: var(--bg);
   font-family:
     Inter,
     ui-sans-serif,
@@ -319,142 +315,73 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: .28;
-  background-image:
-    linear-gradient(
-      rgba(255, 255, 255, .018) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(255, 255, 255, .018) 1px,
-      transparent 1px
-    );
-  background-size: 42px 42px;
-  mask-image: linear-gradient(#000, transparent 86%);
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .page {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 620px);
+  width: min(100%, 500px);
   min-height: 100vh;
   min-height: 100svh;
   margin: auto;
-  padding: 28px 20px 22px;
+  padding: 28px 18px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
 .brand {
+  margin-bottom: 42px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  margin-bottom: 44px;
+  gap: 10px;
 }
 
-.logo {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, .15);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, .055);
-  font-size: 13px;
-  font-weight: 800;
+.brand-mark {
+  width: 12px;
+  height: 12px;
+  border: 3px solid #fff;
+  border-radius: 4px;
+  transform: rotate(45deg);
 }
 
-.brand-copy {
-  display: grid;
-  gap: 2px;
-}
-
-.brand-copy strong {
+.brand strong {
   font-size: 14px;
-}
-
-.brand-copy span {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.online {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #bdbdc5;
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.online::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 99px;
-  background: var(--green);
-  box-shadow: 0 0 0 4px rgba(145, 239, 181, .08);
-}
-
-.eyebrow {
-  margin-bottom: 14px;
-  color: #b7b7c0;
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-}
-
-.eyebrow span {
-  margin-right: 8px;
-  color: #696972;
+  font-weight: 700;
+  letter-spacing: -.01em;
 }
 
 h1 {
   margin: 0;
-  max-width: 540px;
-  font-size: clamp(34px, 8vw, 56px);
-  font-weight: 760;
-  line-height: .99;
-  letter-spacing: -.052em;
+  font-size: clamp(34px, 9vw, 48px);
+  font-weight: 720;
+  line-height: 1;
+  letter-spacing: -.05em;
 }
 
 .lead {
-  max-width: 510px;
-  margin: 18px 0 0;
+  margin: 14px 0 0;
   color: var(--muted);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .card {
-  margin-top: 30px;
-  padding: 20px;
+  margin-top: 26px;
+  padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 18px;
   background: var(--card);
-  box-shadow:
-    0 28px 80px rgba(0, 0, 0, .36),
-    inset 0 1px 0 rgba(255, 255, 255, .04);
-  backdrop-filter: blur(22px);
 }
 
 .account {
-  padding: 15px 16px;
+  padding: 12px 13px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  gap: 12px;
+  border-radius: 12px;
   background: var(--soft);
 }
 
@@ -472,42 +399,31 @@ h1 {
 
 .account strong {
   font-size: 12px;
-}
-
-.method-title {
-  margin: 20px 2px 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.method-title span:last-child {
-  color: #666670;
+  font-weight: 650;
 }
 
 .method {
   position: relative;
-  padding: 14px;
+  margin-top: 12px;
+  padding: 12px;
   display: grid;
-  grid-template-columns: 42px 1fr 20px;
+  grid-template-columns: 44px 1fr 18px;
   align-items: center;
   gap: 12px;
-  border: 1px solid rgba(255, 255, 255, .16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, .055);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--soft);
   cursor: pointer;
   transition:
-    border-color .16s ease,
-    background .16s ease,
-    transform .16s ease;
+    border-color .15s ease,
+    background .15s ease,
+    transform .15s ease;
 }
 
 .method:hover {
+  border-color: rgba(255, 255, 255, .28);
+  background: #17171a;
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, .24);
-  background: rgba(255, 255, 255, .07);
 }
 
 .method-input {
@@ -517,24 +433,41 @@ h1 {
 }
 
 .method-icon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
   display: grid;
   place-items: center;
   border-radius: 12px;
-  background: #f4f4f5;
-  color: #0a0a0b;
+  background: #fff;
+}
+
+.method-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.method-fallback {
+  width: 100%;
+  height: 100%;
+  display: none;
+  place-items: center;
+  color: #111;
   font-size: 10px;
   font-weight: 850;
 }
 
 .method-copy {
+  min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .method-copy strong {
   font-size: 13px;
+  font-weight: 680;
 }
 
 .method-copy span {
@@ -542,83 +475,37 @@ h1 {
   font-size: 11px;
 }
 
-.method-check {
-  width: 19px;
-  height: 19px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, .35);
-  border-radius: 99px;
-}
-
-.method-check::after {
-  content: "";
-  width: 9px;
-  height: 9px;
-  border-radius: 99px;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, .06);
-}
-
-.method + .button,
-.method ~ .button {
-  margin-top: 16px;
-}
-
-.steps {
-  margin: 20px 0;
-  display: grid;
-  gap: 12px;
-}
-
-.step {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  align-items: center;
-  gap: 11px;
-  color: #d0d0d5;
-  font-size: 13px;
-}
-
-.step i {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, .025);
-  color: var(--muted);
-  font-style: normal;
-  font-size: 10px;
-  font-weight: 800;
+.method-arrow {
+  color: #777781;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .button {
   width: 100%;
-  min-height: 52px;
+  min-height: 50px;
+  margin-top: 12px;
   border: 1px solid #fff;
-  border-radius: 15px;
+  border-radius: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
   background: #fff;
   color: #09090a;
   font: inherit;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 720;
   text-decoration: none;
   cursor: pointer;
   transition:
-    transform .16s ease,
-    background .16s ease,
-    opacity .16s ease;
+    transform .15s ease,
+    opacity .15s ease,
+    background .15s ease;
 }
 
 .button:hover {
+  background: #e9e9ec;
   transform: translateY(-1px);
-  background: #ececef;
 }
 
 .button:active {
@@ -626,22 +513,15 @@ h1 {
 }
 
 .button:disabled {
-  opacity: .48;
+  opacity: .42;
   cursor: not-allowed;
   transform: none;
 }
 
-.button.secondary {
-  margin-top: 10px;
-  border-color: var(--line);
-  background: var(--soft);
-  color: #dddde2;
-}
-
-.micro,
 .status {
-  margin: 12px 0 0;
-  color: #70707a;
+  min-height: 17px;
+  margin: 10px 0 0;
+  color: var(--muted);
   text-align: center;
   font-size: 11px;
   line-height: 1.5;
@@ -656,44 +536,44 @@ h1 {
 }
 
 .loader-wrap {
-  min-height: 168px;
+  min-height: 144px;
   display: grid;
   place-items: center;
   text-align: center;
 }
 
 .loader {
-  width: 34px;
-  height: 34px;
-  margin: 0 auto 17px;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 15px;
   border: 2px solid rgba(255, 255, 255, .1);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin .85s linear infinite;
+  animation: spin .8s linear infinite;
 }
 
 .loader-wrap strong {
   display: block;
-  margin-bottom: 7px;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .loader-wrap p {
-  margin: 0;
+  margin: 7px 0 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .key {
-  margin-top: 10px;
-  padding: 17px 14px;
+  margin-top: 9px;
+  padding: 16px 12px;
   border: 1px solid var(--line);
-  border-radius: 15px;
-  background: #09090b;
+  border-radius: 13px;
+  background: #080809;
   color: #fff;
   text-align: center;
-  font-size: clamp(12px, 3.6vw, 15px);
+  font-size: clamp(12px, 3.6vw, 14px);
   font-weight: 700;
   line-height: 1.5;
   word-break: break-all;
@@ -701,20 +581,20 @@ h1 {
 }
 
 .timer-row {
-  margin-top: 20px;
+  margin-top: 17px;
   display: flex;
   align-items: end;
   justify-content: space-between;
 }
 
 .timer {
-  font-size: 20px;
-  font-weight: 720;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .progress {
-  height: 5px;
-  margin: 11px 0 20px;
+  height: 4px;
+  margin: 10px 0 4px;
   overflow: hidden;
   border-radius: 99px;
   background: rgba(255, 255, 255, .07);
@@ -729,17 +609,23 @@ h1 {
   transition: width 1s linear;
 }
 
-.hidden {
-  display: none !important;
+.confetti-piece {
+  position: fixed;
+  z-index: 9999;
+  top: -14px;
+  width: 6px;
+  height: 10px;
+  pointer-events: none;
+  opacity: 0;
+  animation:
+    confetti-fall
+    var(--duration)
+    cubic-bezier(.2, .65, .25, 1)
+    forwards;
 }
 
-footer {
-  margin-top: 28px;
-  color: #5f5f68;
-  text-align: center;
-  font-size: 10px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+.hidden {
+  display: none !important;
 }
 
 @keyframes spin {
@@ -748,9 +634,29 @@ footer {
   }
 }
 
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform:
+      translate3d(0, -12px, 0)
+      rotate(0deg);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(var(--drift), 52vh, 0)
+      rotate(var(--rotation));
+  }
+}
+
 @media (max-width: 520px) {
   .page {
-    padding: 20px 16px 18px;
+    padding: 22px 15px;
   }
 
   .brand {
@@ -758,8 +664,8 @@ footer {
   }
 
   .card {
-    padding: 16px;
-    border-radius: 21px;
+    padding: 14px;
+    border-radius: 16px;
   }
 }
 `;
@@ -767,14 +673,8 @@ footer {
 function brand() {
   return `
     <header class="brand">
-      <div class="logo">NH</div>
-
-      <div class="brand-copy">
-        <strong>Nameless Hub</strong>
-        <span>Secure key delivery</span>
-      </div>
-
-      <div class="online">Online</div>
+      <span class="brand-mark"></span>
+      <strong>Nameless Hub</strong>
     </header>
   `;
 }
@@ -785,13 +685,27 @@ function page(title, description, content, script = "") {
     <html lang="en">
       <head>
         <meta charset="utf-8">
+
         <meta
           name="viewport"
           content="width=device-width,initial-scale=1,viewport-fit=cover"
         >
-        <meta name="theme-color" content="#050506">
-        <meta name="description" content="${description}">
-        <meta property="og:title" content="${title}">
+
+        <meta
+          name="theme-color"
+          content="#050506"
+        >
+
+        <meta
+          name="description"
+          content="${description}"
+        >
+
+        <meta
+          property="og:title"
+          content="${title}"
+        >
+
         <meta
           property="og:url"
           content="${PUBLIC_ORIGIN}/get-key"
@@ -818,23 +732,16 @@ function getKeyPage(uid) {
       <main class="page">
         ${brand()}
 
-        <div class="eyebrow">
-          <span>01</span>
-          Key access
-        </div>
-
         <h1>Get Key</h1>
 
         <p class="lead">
-          Choose a method below. Your generated key will be
-          linked to your Roblox account and remain active for
-          ${KEY_TTL_HOURS} hours.
+          Choose a method to continue.
         </p>
 
         <section class="card">
           <div class="account">
-            <span>Roblox account</span>
-            <strong>ID ${safeUid}</strong>
+            <span>Roblox ID</span>
+            <strong>${safeUid}</strong>
           </div>
 
           <form action="/start" method="get">
@@ -843,11 +750,6 @@ function getKeyPage(uid) {
               name="uid"
               value="${safeUid}"
             >
-
-            <div class="method-title">
-              <span>Available methods</span>
-              <span>1 available</span>
-            </div>
 
             <label class="method">
               <input
@@ -858,87 +760,55 @@ function getKeyPage(uid) {
                 checked
               >
 
-              <span class="method-icon">LL</span>
+              <span class="method-icon">
+                <img
+                  src="https://media.licdn.com/dms/image/v2/D4D0BAQFC2ErrY3XtXw/company-logo_200_200/company-logo_200_200/0/1684408131437/lootlabsgg_logo?e=2147483647&amp;v=beta&amp;t=kO3BbH2OnfQqlSm8hd1K1IhD4cJlEQgCWWDjM4DwLpE"
+                  alt="LootLabs"
+                  referrerpolicy="no-referrer"
+                  onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
+                >
 
-              <span class="method-copy">
-                <strong>LootLabs</strong>
-                <span>
-                  Complete a short checkpoint · ~2 min
+                <span class="method-fallback">
+                  LL
                 </span>
               </span>
 
-              <span class="method-check"></span>
+              <span class="method-copy">
+                <strong>LootLabs</strong>
+                <span>About 2 minutes</span>
+              </span>
+
+              <span class="method-arrow">›</span>
             </label>
 
             <button class="button" type="submit">
-              Continue with LootLabs
-              <span>→</span>
+              Continue
             </button>
           </form>
-
-          <p class="micro">
-            After completion, you will return here to receive
-            your key.
-          </p>
         </section>
-
-        <footer>
-          nhhub.top · protected access
-        </footer>
       </main>
     `
     : `
       <main class="page">
         ${brand()}
 
-        <div class="eyebrow">
-          <span>01</span>
-          Access request
-        </div>
-
-        <h1>Open this page from Nameless Hub.</h1>
+        <h1>Open from the script</h1>
 
         <p class="lead">
-          Press Get Key inside the script. It creates a secure
-          link connected to your Roblox account.
+          Use Get Key inside Nameless Hub to create a linked request.
         </p>
 
         <section class="card">
-          <div class="account">
-            <span>Account link</span>
-            <strong>Not detected</strong>
-          </div>
-
-          <div class="steps">
-            <div class="step">
-              <i>01</i>
-              <span>
-                Return to the Nameless Hub key screen
-              </span>
-            </div>
-
-            <div class="step">
-              <i>02</i>
-              <span>
-                Press Get Key and open the copied link
-              </span>
-            </div>
-          </div>
-
           <button class="button" disabled>
-            Waiting for account link
+            Account not linked
           </button>
         </section>
-
-        <footer>
-          nhhub.top · protected access
-        </footer>
       </main>
     `;
 
   return page(
     "Get Key · Nameless Hub",
-    "Secure Nameless Hub key delivery.",
+    "Nameless Hub key delivery.",
     body
   );
 }
@@ -957,18 +827,12 @@ function errorPage(title, message, uid) {
       <main class="page">
         ${brand()}
 
-        <div class="eyebrow">
-          <span>!</span>
-          Request stopped
-        </div>
-
         <h1>${title}</h1>
         <p class="lead">${message}</p>
 
         <section class="card">
           <a class="button" href="${href}">
             Try again
-            <span>→</span>
           </a>
         </section>
       </main>
@@ -1310,32 +1174,17 @@ app.get("/complete", (req, res) => {
     <main class="page">
       ${brand()}
 
-      <div class="eyebrow">
-        <span>02</span>
-        Key delivery
-      </div>
-
-      <h1 id="title">
-        Your key is almost ready.
-      </h1>
+      <h1 id="title">Checking key</h1>
 
       <p id="lead" class="lead">
-        Keep this page open while the confirmation
-        is processed.
+        Confirming your LootLabs completion.
       </p>
 
       <section id="loading" class="card">
         <div class="loader-wrap">
           <div>
             <div class="loader"></div>
-
-            <strong>
-              Confirming completion
-            </strong>
-
-            <p>
-              This normally takes only a few seconds.
-            </p>
+            <strong>Checking completion</strong>
           </div>
         </div>
       </section>
@@ -1344,16 +1193,12 @@ app.get("/complete", (req, res) => {
         id="result"
         class="card hidden"
       >
-        <div class="label">
-          Your access key
-        </div>
+        <div class="label">Key</div>
 
         <div id="key" class="key"></div>
 
         <div class="timer-row">
-          <span class="label">
-            Time remaining
-          </span>
+          <span class="label">Expires in</span>
 
           <strong id="timer" class="timer">
             --:--:--
@@ -1397,10 +1242,6 @@ app.get("/complete", (req, res) => {
           Try again
         </a>
       </section>
-
-      <footer>
-        nhhub.top · protected access
-      </footer>
     </main>
   `;
 
@@ -1484,16 +1325,98 @@ app.get("/complete", (req, res) => {
         (state ? " " + state : "");
     }
 
+    function celebrate() {
+      const colors = [
+        "#ffffff",
+        "#f7d154",
+        "#7dd3fc",
+        "#c4b5fd",
+        "#f9a8d4"
+      ];
+
+      for (
+        let index = 0;
+        index < 28;
+        index += 1
+      ) {
+        const piece =
+          document.createElement("span");
+
+        piece.className =
+          "confetti-piece";
+
+        piece.style.left =
+          Math.random() * 100 + "vw";
+
+        piece.style.background =
+          colors[index % colors.length];
+
+        piece.style.borderRadius =
+          Math.random() > .55
+            ? "99px"
+            : "2px";
+
+        piece.style.setProperty(
+          "--drift",
+          (Math.random() * 150 - 75) + "px"
+        );
+
+        piece.style.setProperty(
+          "--rotation",
+          (Math.random() * 720 - 360) + "deg"
+        );
+
+        piece.style.setProperty(
+          "--duration",
+          (1.25 + Math.random() * .65) + "s"
+        );
+
+        piece.style.animationDelay =
+          Math.random() * .18 + "s";
+
+        document.body.appendChild(piece);
+
+        piece.addEventListener(
+          "animationend",
+          function () {
+            piece.remove();
+          }
+        );
+      }
+    }
+
+    function celebrateOnce() {
+      const token =
+        "nh-confetti:" + currentKey;
+
+      let shown = false;
+
+      try {
+        shown =
+          sessionStorage.getItem(token) === "1";
+
+        if (!shown) {
+          sessionStorage.setItem(token, "1");
+        }
+      } catch {
+        shown = false;
+      }
+
+      if (!shown) {
+        celebrate();
+      }
+    }
+
     function fail(message, canContinue) {
       loading.classList.add("hidden");
       result.classList.add("hidden");
       errorBox.classList.remove("hidden");
 
       title.textContent =
-        "Key delivery paused.";
+        "Key unavailable";
 
       lead.textContent =
-        "Use the action below to finish or restart your request.";
+        "Finish the checkpoint or create a new request.";
 
       errorText.textContent =
         message ||
@@ -1507,8 +1430,8 @@ app.get("/complete", (req, res) => {
           : "/get-key";
 
       retry.textContent = canContinue
-        ? "Return to checkpoint"
-        : "Create a new request";
+        ? "Continue"
+        : "New request";
     }
 
     function tick() {
@@ -1537,7 +1460,7 @@ app.get("/complete", (req, res) => {
         copy.textContent = "Key expired";
 
         setStatus(
-          "Create a new key to continue.",
+          "Create a new key.",
           "bad"
         );
       }
@@ -1545,6 +1468,7 @@ app.get("/complete", (req, res) => {
 
     function ready(data) {
       currentKey = String(data.key || "");
+
       expiresAt = Date.parse(
         data.expiresAt || ""
       );
@@ -1584,17 +1508,13 @@ app.get("/complete", (req, res) => {
       errorBox.classList.add("hidden");
       result.classList.remove("hidden");
 
-      title.textContent =
-        "Your key is ready.";
+      title.textContent = "Key ready";
 
       lead.textContent =
-        "Copy it below and paste it into Nameless Hub.";
+        "Copy it and paste it into Nameless Hub.";
 
-      setStatus(
-        "Key ready. Copy it and return to Roblox.",
-        "good"
-      );
-
+      setStatus("", "");
+      celebrateOnce();
       tick();
 
       timerHandle =
@@ -1630,20 +1550,17 @@ app.get("/complete", (req, res) => {
         }
 
         copy.textContent = "Copied";
-
-        setStatus(
-          "Copied. Paste the key in Nameless Hub.",
-          "good"
-        );
+        setStatus("Copied", "good");
 
         setTimeout(function () {
           if (!copy.disabled) {
             copy.textContent = "Copy key";
+            setStatus("", "");
           }
-        }, 1500);
+        }, 1400);
       } catch {
         setStatus(
-          "Select the key and copy it manually.",
+          "Select and copy the key manually.",
           "bad"
         );
       }
