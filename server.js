@@ -973,19 +973,15 @@ h1 {
 
 .home-title {
   max-width: 680px;
+  margin-left: auto;
   font-size: clamp(48px, 11vw, 82px);
   line-height: .92;
   letter-spacing: -.065em;
-}
-
-.home-lead {
-  max-width: 570px;
-  margin-top: 20px;
-  font-size: 15px;
+  text-align: right;
 }
 
 .loader-card {
-  margin-top: 34px;
+  margin-top: 26px;
   padding: 14px;
   border-radius: 24px;
 }
@@ -1262,13 +1258,7 @@ function homePage() {
 
   const content = `
     <main class="page home-page">
-      ${brand()}
-
       <h1 class="home-title">Nameless Hub</h1>
-
-      <p class="lead home-lead">
-        One clean loader. Always the latest version.
-      </p>
 
       <section class="card loader-card spot">
         <div class="loader-row">
@@ -1304,7 +1294,7 @@ function homePage() {
       </section>
 
       <p class="home-note">
-        Paste the loader into your supported environment to launch Nameless Hub.
+        Paste the loader into your supported executor to launch Nameless Hub.
       </p>
     </main>
   `;
