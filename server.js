@@ -967,17 +967,39 @@ h1 {
   width: min(100%, 760px);
 }
 
+.home-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: home-reveal-in .7s cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+@keyframes home-reveal-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-reveal {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
 .home-page .brand {
   margin-bottom: 64px;
 }
 
 .home-title {
-  max-width: 680px;
-  margin-left: auto;
+  max-width: 100%;
+  padding-right: 2px;
   font-size: clamp(48px, 11vw, 82px);
   line-height: .92;
-  letter-spacing: -.065em;
+  letter-spacing: -.05em;
   text-align: right;
+  overflow-wrap: break-word;
 }
 
 .loader-card {
@@ -1091,11 +1113,16 @@ h1 {
 }
 
 .loader-status {
-  min-height: 16px;
-  margin: 11px 4px 0;
+  min-height: 0;
+  margin: 0 4px 0;
   color: var(--muted);
   font-size: 11px;
   text-align: right;
+}
+
+.loader-status:not(:empty) {
+  min-height: 16px;
+  margin: 8px 4px 0;
 }
 
 .loader-status.good {
@@ -1103,7 +1130,7 @@ h1 {
 }
 
 .home-note {
-  margin: 22px 4px 0;
+  margin: 16px 4px 0;
   color: #6f6f78;
   font-size: 11px;
   line-height: 1.6;
@@ -1128,7 +1155,9 @@ h1 {
   }
 
   .home-title {
-    font-size: clamp(44px, 15vw, 66px);
+    padding-right: 1px;
+    font-size: clamp(38px, 12.5vw, 60px);
+    letter-spacing: -.03em;
   }
 
   .loader-card {
@@ -1258,9 +1287,9 @@ function homePage() {
 
   const content = `
     <main class="page home-page">
-      <h1 class="home-title">Nameless Hub</h1>
+      <h1 class="home-title home-reveal" style="animation-delay:.05s">Nameless Hub</h1>
 
-      <section class="card loader-card spot">
+      <section class="card loader-card spot home-reveal" style="animation-delay:.16s">
         <div class="loader-row">
           <code
             id="loaderCode"
@@ -1293,7 +1322,7 @@ function homePage() {
         ></div>
       </section>
 
-      <p class="home-note">
+      <p class="home-note home-reveal" style="animation-delay:.26s">
         Paste the loader into your supported executor to launch Nameless Hub.
       </p>
     </main>
