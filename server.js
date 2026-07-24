@@ -379,7 +379,7 @@ body {
   background: radial-gradient(
     circle at 50% 40%,
     transparent 0%,
-    var(--bg) 78%
+    var(--bg) 88%
   );
 }
 
@@ -438,8 +438,9 @@ a {
   width: 11px;
   height: 11px;
   border: 2px solid #fff;
-  border-radius: 0;
+  border-radius: 3px;
   transform: rotate(45deg);
+  filter: drop-shadow(0 0 8px rgba(255, 70, 85, .6));
 }
 
 .brand strong {
@@ -451,6 +452,10 @@ a {
 
 h1 {
   margin: 0;
+  background: linear-gradient(135deg, #ffffff 45%, #ff8a95 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   font-size: clamp(32px, 8.5vw, 44px);
   font-weight: 760;
   line-height: 1;
@@ -466,21 +471,26 @@ h1 {
 
 .card {
   margin-top: 26px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--card);
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 22px;
+  background: rgba(16, 16, 19, .55);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow:
+    0 24px 60px -24px rgba(0, 0, 0, .65),
+    inset 0 1px 0 rgba(255, 255, 255, .06);
 }
 
 .account {
-  padding: 12px 13px;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  background: var(--soft);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .04);
 }
 
 .account span,
@@ -505,24 +515,28 @@ h1 {
 
 .method {
   position: relative;
-  margin-top: 12px;
+  margin-top: 14px;
   padding: 12px;
   display: grid;
   grid-template-columns: 44px 1fr 18px;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 3px;
-  background: var(--soft);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .03);
   cursor: pointer;
   transition:
-    border-color .15s ease,
-    background .15s ease;
+    border-color .25s cubic-bezier(.16, 1, .3, 1),
+    background .25s cubic-bezier(.16, 1, .3, 1),
+    transform .25s cubic-bezier(.16, 1, .3, 1),
+    box-shadow .25s cubic-bezier(.16, 1, .3, 1);
 }
 
 .method:hover {
-  border-color: #fff;
-  background: #17171a;
+  border-color: rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .06);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px -18px rgba(255, 60, 75, .45);
 }
 
 .method-input {
@@ -537,7 +551,7 @@ h1 {
   overflow: hidden;
   display: grid;
   place-items: center;
-  border-radius: 3px;
+  border-radius: 12px;
   background: #fff;
 }
 
@@ -583,13 +597,13 @@ h1 {
 .button {
   width: 100%;
   min-height: 50px;
-  margin-top: 12px;
-  border: 1px solid #fff;
-  border-radius: 3px;
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: linear-gradient(180deg, #ffffff, #efeff2);
   color: #09090a;
   font: inherit;
   font-size: 12px;
@@ -598,17 +612,22 @@ h1 {
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
+  box-shadow: 0 14px 30px -14px rgba(255, 255, 255, .3);
   transition:
-    opacity .15s ease,
-    background .15s ease;
+    transform .25s cubic-bezier(.16, 1, .3, 1),
+    box-shadow .25s cubic-bezier(.16, 1, .3, 1),
+    background .25s ease;
 }
 
 .button:hover {
-  background: #e9e9ec;
+  background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px -14px rgba(255, 70, 85, .45);
 }
 
 .button:active {
-  opacity: .85;
+  transform: translateY(0);
+  opacity: .9;
 }
 
 .button:disabled {
@@ -667,9 +686,11 @@ h1 {
 .key {
   margin-top: 9px;
   padding: 16px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 3px;
-  background: #080809;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 15px;
+  background: rgba(0, 0, 0, .35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: #fff;
   text-align: center;
   font-size: clamp(12px, 3.6vw, 14px);
@@ -693,10 +714,10 @@ h1 {
 }
 
 .progress {
-  height: 3px;
+  height: 4px;
   margin: 10px 0 4px;
   overflow: hidden;
-  border-radius: 0;
+  border-radius: 99px;
   background: rgba(255, 255, 255, .08);
 }
 
@@ -705,7 +726,7 @@ h1 {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: #fff;
+  background: linear-gradient(90deg, #ff929e, #ffffff);
   transition: width 1s linear;
 }
 
@@ -764,8 +785,8 @@ h1 {
   }
 
   .card {
-    padding: 14px;
-    border-radius: 4px;
+    padding: 15px;
+    border-radius: 18px;
   }
 }
 `;
