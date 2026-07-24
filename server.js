@@ -289,10 +289,10 @@ const siteCss = `
   --muted: #85858f;
   --green: #8fe3ae;
   --red: #ff929e;
-  --blob-a: rgba(210, 215, 225, .5);
-  --blob-b: rgba(143, 227, 174, .32);
-  --blob-c: rgba(255, 146, 158, .28);
-  --blob-d: rgba(120, 130, 150, .4);
+  --blob-a: rgba(255, 255, 255, .5);
+  --blob-b: rgba(255, 60, 75, .4);
+  --blob-c: rgba(255, 146, 158, .38);
+  --blob-d: rgba(255, 255, 255, .32);
 }
 
 * {
@@ -342,7 +342,7 @@ body {
   width: 46vmax;
   height: 46vmax;
   background: var(--blob-a);
-  animation: drift-1 26s ease-in-out infinite alternate;
+  animation: drift-1 10s ease-in-out infinite alternate;
 }
 
 .lava-bg .b2 {
@@ -351,7 +351,7 @@ body {
   width: 34vmax;
   height: 34vmax;
   background: var(--blob-b);
-  animation: drift-2 32s ease-in-out infinite alternate;
+  animation: drift-2 13s ease-in-out infinite alternate;
 }
 
 .lava-bg .b3 {
@@ -360,7 +360,7 @@ body {
   width: 38vmax;
   height: 38vmax;
   background: var(--blob-c);
-  animation: drift-3 22s ease-in-out infinite alternate;
+  animation: drift-3 9s ease-in-out infinite alternate;
 }
 
 .lava-bg .b4 {
@@ -369,7 +369,7 @@ body {
   width: 30vmax;
   height: 30vmax;
   background: var(--blob-d);
-  animation: drift-4 38s ease-in-out infinite alternate;
+  animation: drift-4 15s ease-in-out infinite alternate;
 }
 
 .lava-bg::after {
