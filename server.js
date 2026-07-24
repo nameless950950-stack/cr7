@@ -280,15 +280,19 @@ app.use(publicLimiter);
 const siteCss = `
 :root {
   color-scheme: dark;
-  --bg: #070708;
-  --card: #0d0d0f;
-  --soft: #131316;
-  --line: rgba(255, 255, 255, .1);
-  --line-strong: rgba(255, 255, 255, .18);
+  --bg: #050506;
+  --card: #0b0b0d;
+  --soft: #121214;
+  --line: rgba(255, 255, 255, .12);
+  --line-strong: rgba(255, 255, 255, .32);
   --text: #f5f5f7;
   --muted: #85858f;
   --green: #8fe3ae;
   --red: #ff929e;
+  --blob-a: rgba(210, 215, 225, .5);
+  --blob-b: rgba(143, 227, 174, .32);
+  --blob-c: rgba(255, 146, 158, .28);
+  --blob-d: rgba(120, 130, 150, .4);
 }
 
 * {
@@ -300,9 +304,11 @@ html {
 }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100vh;
   min-height: 100svh;
+  overflow-x: hidden;
   color: var(--text);
   background: var(--bg);
   font-family:
@@ -315,12 +321,102 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.lava-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lava-bg span {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+
+.lava-bg .b1 {
+  left: 8%;
+  top: 8%;
+  width: 46vmax;
+  height: 46vmax;
+  background: var(--blob-a);
+  animation: drift-1 26s ease-in-out infinite alternate;
+}
+
+.lava-bg .b2 {
+  right: 4%;
+  top: 32%;
+  width: 34vmax;
+  height: 34vmax;
+  background: var(--blob-b);
+  animation: drift-2 32s ease-in-out infinite alternate;
+}
+
+.lava-bg .b3 {
+  left: 18%;
+  bottom: 4%;
+  width: 38vmax;
+  height: 38vmax;
+  background: var(--blob-c);
+  animation: drift-3 22s ease-in-out infinite alternate;
+}
+
+.lava-bg .b4 {
+  right: 18%;
+  bottom: -10%;
+  width: 30vmax;
+  height: 30vmax;
+  background: var(--blob-d);
+  animation: drift-4 38s ease-in-out infinite alternate;
+}
+
+.lava-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 40%,
+    transparent 0%,
+    var(--bg) 78%
+  );
+}
+
+@keyframes drift-1 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(10vmax, 14vmax, 0) scale(1.15); }
+}
+
+@keyframes drift-2 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-12vmax, 10vmax, 0) scale(.9); }
+}
+
+@keyframes drift-3 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(9vmax, -12vmax, 0) scale(1.1); }
+}
+
+@keyframes drift-4 {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-8vmax, -9vmax, 0) scale(1.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lava-bg span {
+    animation: none !important;
+  }
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
 
 .page {
+  position: relative;
+  z-index: 1;
   width: min(100%, 500px);
   min-height: 100vh;
   min-height: 100svh;
@@ -339,25 +435,26 @@ a {
 }
 
 .brand-mark {
-  width: 12px;
-  height: 12px;
-  border: 3px solid #fff;
-  border-radius: 4px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 0;
   transform: rotate(45deg);
 }
 
 .brand strong {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: -.01em;
+  letter-spacing: .14em;
+  text-transform: uppercase;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(34px, 9vw, 48px);
-  font-weight: 720;
+  font-size: clamp(32px, 8.5vw, 44px);
+  font-weight: 760;
   line-height: 1;
-  letter-spacing: -.05em;
+  letter-spacing: -.04em;
 }
 
 .lead {
@@ -371,7 +468,7 @@ h1 {
   margin-top: 26px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 4px;
   background: var(--card);
 }
 
@@ -381,14 +478,18 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
   background: var(--soft);
 }
 
 .account span,
 .label {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
 .account strong,
@@ -411,19 +512,17 @@ h1 {
   align-items: center;
   gap: 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 14px;
+  border-radius: 3px;
   background: var(--soft);
   cursor: pointer;
   transition:
     border-color .15s ease,
-    background .15s ease,
-    transform .15s ease;
+    background .15s ease;
 }
 
 .method:hover {
-  border-color: rgba(255, 255, 255, .28);
+  border-color: #fff;
   background: #17171a;
-  transform: translateY(-1px);
 }
 
 .method-input {
@@ -438,7 +537,7 @@ h1 {
   overflow: hidden;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 3px;
   background: #fff;
 }
 
@@ -486,30 +585,30 @@ h1 {
   min-height: 50px;
   margin-top: 12px;
   border: 1px solid #fff;
-  border-radius: 13px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #fff;
   color: #09090a;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 720;
+  letter-spacing: .06em;
+  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
   transition:
-    transform .15s ease,
     opacity .15s ease,
     background .15s ease;
 }
 
 .button:hover {
   background: #e9e9ec;
-  transform: translateY(-1px);
 }
 
 .button:active {
-  transform: scale(.99);
+  opacity: .85;
 }
 
 .button:disabled {
@@ -568,13 +667,14 @@ h1 {
 .key {
   margin-top: 9px;
   padding: 16px 12px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
   background: #080809;
   color: #fff;
   text-align: center;
   font-size: clamp(12px, 3.6vw, 14px);
   font-weight: 700;
+  letter-spacing: .02em;
   line-height: 1.5;
   word-break: break-all;
   user-select: all;
@@ -593,11 +693,11 @@ h1 {
 }
 
 .progress {
-  height: 4px;
+  height: 3px;
   margin: 10px 0 4px;
   overflow: hidden;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, .07);
+  border-radius: 0;
+  background: rgba(255, 255, 255, .08);
 }
 
 .progress span {
@@ -665,7 +765,7 @@ h1 {
 
   .card {
     padding: 14px;
-    border-radius: 16px;
+    border-radius: 4px;
   }
 }
 `;
@@ -717,6 +817,13 @@ function page(title, description, content, script = "") {
       </head>
 
       <body>
+        <div class="lava-bg" aria-hidden="true">
+          <span class="b1"></span>
+          <span class="b2"></span>
+          <span class="b3"></span>
+          <span class="b4"></span>
+        </div>
+
         ${content}
         ${script ? `<script>${script}</script>` : ""}
       </body>
