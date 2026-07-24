@@ -321,6 +321,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: .05;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 .lava-bg {
   position: fixed;
   inset: 0;
@@ -441,6 +452,18 @@ a {
   border-radius: 3px;
   transform: rotate(45deg);
   filter: drop-shadow(0 0 8px rgba(255, 70, 85, .6));
+  animation: mark-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes mark-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(255, 70, 85, .45));
+    transform: rotate(45deg) scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 13px rgba(255, 70, 85, .85));
+    transform: rotate(45deg) scale(1.12);
+  }
 }
 
 .brand strong {
@@ -470,6 +493,8 @@ h1 {
 }
 
 .card {
+  position: relative;
+  overflow: hidden;
   margin-top: 26px;
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, .1);
@@ -480,6 +505,32 @@ h1 {
   box-shadow:
     0 24px 60px -24px rgba(0, 0, 0, .65),
     inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+.spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 110, 120, .16),
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity .4s ease;
+  pointer-events: none;
+}
+
+.spot:hover::after {
+  opacity: 1;
+}
+
+.card > *,
+.method > * {
+  position: relative;
+  z-index: 1;
 }
 
 .account {
@@ -515,6 +566,7 @@ h1 {
 
 .method {
   position: relative;
+  overflow: hidden;
   margin-top: 14px;
   padding: 12px;
   display: grid;
@@ -595,6 +647,8 @@ h1 {
 }
 
 .button {
+  position: relative;
+  overflow: hidden;
   width: 100%;
   min-height: 50px;
   margin-top: 14px;
@@ -617,6 +671,33 @@ h1 {
     transform .25s cubic-bezier(.16, 1, .3, 1),
     box-shadow .25s cubic-bezier(.16, 1, .3, 1),
     background .25s ease;
+}
+
+.button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 30%;
+  background: linear-gradient(
+    115deg,
+    transparent,
+    rgba(255, 90, 105, .55),
+    transparent
+  );
+  transform: skewX(-18deg);
+  opacity: 0;
+}
+
+.button:hover::after {
+  opacity: 1;
+  animation: sheen 1s ease forwards;
+}
+
+@keyframes sheen {
+  0% { left: -40%; }
+  100% { left: 130%; }
 }
 
 .button:hover {
@@ -800,6 +881,20 @@ function brand() {
   `;
 }
 
+const spotlightScript = `
+  (function () {
+    var els = document.querySelectorAll(".spot");
+
+    els.forEach(function (el) {
+      el.addEventListener("pointermove", function (e) {
+        var rect = el.getBoundingClientRect();
+        el.style.setProperty("--mx", (e.clientX - rect.left) + "px");
+        el.style.setProperty("--my", (e.clientY - rect.top) + "px");
+      });
+    });
+  })();
+`;
+
 function page(title, description, content, script = "") {
   return `
     <!doctype html>
@@ -846,6 +941,7 @@ function page(title, description, content, script = "") {
         </div>
 
         ${content}
+        <script>${spotlightScript}</script>
         ${script ? `<script>${script}</script>` : ""}
       </body>
     </html>
@@ -866,7 +962,7 @@ function getKeyPage(uid) {
           Choose a method to continue.
         </p>
 
-        <section class="card">
+        <section class="card spot">
           <div class="account">
             <span>Roblox ID</span>
             <strong>${safeUid}</strong>
@@ -879,7 +975,7 @@ function getKeyPage(uid) {
               value="${safeUid}"
             >
 
-            <label class="method">
+            <label class="method spot">
               <input
                 class="method-input"
                 type="radio"
@@ -926,7 +1022,7 @@ function getKeyPage(uid) {
           Use Get Key inside Nameless Hub to create a linked request.
         </p>
 
-        <section class="card">
+        <section class="card spot">
           <button class="button" disabled>
             Account not linked
           </button>
@@ -958,7 +1054,7 @@ function errorPage(title, message, uid) {
         <h1>${title}</h1>
         <p class="lead">${message}</p>
 
-        <section class="card">
+        <section class="card spot">
           <a class="button" href="${href}">
             Try again
           </a>
@@ -1308,7 +1404,7 @@ app.get("/complete", (req, res) => {
         Confirming your LootLabs completion.
       </p>
 
-      <section id="loading" class="card">
+      <section id="loading" class="card spot">
         <div class="loader-wrap">
           <div>
             <div class="loader"></div>
@@ -1319,7 +1415,7 @@ app.get("/complete", (req, res) => {
 
       <section
         id="result"
-        class="card hidden"
+        class="card spot hidden"
       >
         <div class="label">Key</div>
 
@@ -1353,7 +1449,7 @@ app.get("/complete", (req, res) => {
 
       <section
         id="error"
-        class="card hidden"
+        class="card spot hidden"
       >
         <div class="loader-wrap">
           <div>
