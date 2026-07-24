@@ -994,11 +994,11 @@ h1 {
 
 .home-title {
   max-width: 100%;
-  padding-right: 2px;
+  margin: 0 auto;
   font-size: clamp(48px, 11vw, 82px);
   line-height: .92;
   letter-spacing: -.05em;
-  text-align: right;
+  text-align: center;
   overflow-wrap: break-word;
 }
 
@@ -1155,7 +1155,6 @@ h1 {
   }
 
   .home-title {
-    padding-right: 1px;
     font-size: clamp(38px, 12.5vw, 60px);
     letter-spacing: -.03em;
   }
