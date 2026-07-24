@@ -40,6 +40,19 @@ const PUBLIC_ORIGIN = String(
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
+const LOADER_SOURCE_URL = String(
+  process.env.LOADER_SOURCE_URL ||
+  "https://raw.githubusercontent.com/kickbox-er/biome/refs/heads/main/fest1"
+).trim();
+
+const LOADER_CACHE_MS = Math.max(
+  1000,
+  Number(process.env.LOADER_CACHE_MS || 30000)
+);
+
+let loaderSourceCache = "";
+let loaderSourceCachedAt = 0;
+
 function requireEnv(name, value) {
   if (!value || String(value).trim() === "") {
     console.error("Missing env:", name);
@@ -460,6 +473,7 @@ a {
     filter: drop-shadow(0 0 6px rgba(255, 70, 85, .45));
     transform: rotate(45deg) scale(1);
   }
+
   50% {
     filter: drop-shadow(0 0 13px rgba(255, 70, 85, .85));
     transform: rotate(45deg) scale(1.12);
@@ -537,8 +551,15 @@ h1 {
 }
 
 @keyframes sheen-drift {
-  0%, 100% { transform: translateX(-4%) translateY(0); opacity: .4; }
-  50% { transform: translateX(4%) translateY(2%); opacity: .6; }
+  0%, 100% {
+    transform: translateX(-4%) translateY(0);
+    opacity: .4;
+  }
+
+  50% {
+    transform: translateX(4%) translateY(2%);
+    opacity: .6;
+  }
 }
 
 .spot::after {
@@ -769,8 +790,13 @@ h1 {
 }
 
 @keyframes sheen {
-  0% { left: -40%; }
-  100% { left: 130%; }
+  0% {
+    left: -40%;
+  }
+
+  100% {
+    left: 130%;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -937,6 +963,156 @@ h1 {
   }
 }
 
+.page.home-page {
+  width: min(100%, 760px);
+}
+
+.home-page .brand {
+  margin-bottom: 64px;
+}
+
+.home-title {
+  max-width: 680px;
+  font-size: clamp(48px, 11vw, 82px);
+  line-height: .92;
+  letter-spacing: -.065em;
+}
+
+.home-lead {
+  max-width: 570px;
+  margin-top: 20px;
+  font-size: 15px;
+}
+
+.loader-card {
+  margin-top: 34px;
+  padding: 14px;
+  border-radius: 24px;
+}
+
+.loader-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.loader-code {
+  min-width: 0;
+  min-height: 52px;
+  padding: 0 17px;
+  overflow-x: auto;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, .34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 14px 30px -24px rgba(0, 0, 0, .9);
+  color: #fff;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.loader-code::-webkit-scrollbar {
+  display: none;
+}
+
+.copy-icon-button {
+  position: relative;
+  overflow: hidden;
+  width: 52px;
+  min-height: 52px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .08);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  cursor: pointer;
+  transition:
+    transform .22s cubic-bezier(.16, 1, .3, 1),
+    border-color .22s ease,
+    background .22s ease,
+    box-shadow .22s ease;
+}
+
+.copy-icon-button img {
+  width: 20px;
+  height: 20px;
+  display: block;
+  opacity: .88;
+  filter: invert(1);
+  transition: transform .25s cubic-bezier(.16, 1, .3, 1);
+}
+
+.copy-icon-button .copy-fallback {
+  display: none;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.copy-icon-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 20%,
+    rgba(255, 146, 158, .32),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity .25s ease;
+  pointer-events: none;
+}
+
+.copy-icon-button:hover {
+  border-color: rgba(255, 255, 255, .3);
+  background: rgba(255, 255, 255, .12);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px -20px rgba(255, 70, 85, .8);
+}
+
+.copy-icon-button:hover::after,
+.copy-icon-button.is-copied::after {
+  opacity: 1;
+}
+
+.copy-icon-button:active {
+  transform: scale(.96);
+}
+
+.copy-icon-button.is-copied img {
+  transform: scale(.86);
+}
+
+.loader-status {
+  min-height: 16px;
+  margin: 11px 4px 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.loader-status.good {
+  color: var(--green);
+}
+
+.home-note {
+  margin: 22px 4px 0;
+  color: #6f6f78;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 @media (max-width: 520px) {
   .page {
     padding: 22px 15px;
@@ -949,6 +1125,34 @@ h1 {
   .card {
     padding: 16px;
     border-radius: 24px;
+  }
+
+  .home-page .brand {
+    margin-bottom: 46px;
+  }
+
+  .home-title {
+    font-size: clamp(44px, 15vw, 66px);
+  }
+
+  .loader-card {
+    padding: 11px;
+  }
+
+  .loader-row {
+    grid-template-columns: minmax(0, 1fr) 50px;
+    gap: 8px;
+  }
+
+  .loader-code {
+    min-height: 50px;
+    padding: 0 14px;
+    font-size: 11px;
+  }
+
+  .copy-icon-button {
+    width: 50px;
+    min-height: 50px;
   }
 }
 `;
@@ -993,7 +1197,13 @@ const spotlightScript = `
   })();
 `;
 
-function page(title, description, content, script = "") {
+function page(
+  title,
+  description,
+  content,
+  script = "",
+  canonicalPath = "/"
+) {
   return `
     <!doctype html>
     <html lang="en">
@@ -1022,7 +1232,7 @@ function page(title, description, content, script = "") {
 
         <meta
           property="og:url"
-          content="${PUBLIC_ORIGIN}/get-key"
+          content="${PUBLIC_ORIGIN}${canonicalPath}"
         >
 
         <title>${title}</title>
@@ -1044,6 +1254,119 @@ function page(title, description, content, script = "") {
       </body>
     </html>
   `;
+}
+
+function homePage() {
+  const loaderCommand =
+    `loadstring(game:HttpGet("${PUBLIC_ORIGIN}/loader"))()`;
+
+  const content = `
+    <main class="page home-page">
+      ${brand()}
+
+      <h1 class="home-title">Nameless Hub</h1>
+
+      <p class="lead home-lead">
+        One clean loader. Always the latest version.
+      </p>
+
+      <section class="card loader-card spot">
+        <div class="loader-row">
+          <code
+            id="loaderCode"
+            class="loader-code"
+          >${loaderCommand}</code>
+
+          <button
+            id="copyLoader"
+            class="copy-icon-button spot"
+            type="button"
+            aria-label="Copy loader"
+            title="Copy loader"
+          >
+            <img
+              src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/copy.svg"
+              alt=""
+              aria-hidden="true"
+              referrerpolicy="no-referrer"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+            >
+
+            <span class="copy-fallback">COPY</span>
+          </button>
+        </div>
+
+        <div
+          id="loaderStatus"
+          class="loader-status"
+          aria-live="polite"
+        ></div>
+      </section>
+
+      <p class="home-note">
+        Paste the loader into your supported environment to launch Nameless Hub.
+      </p>
+    </main>
+  `;
+
+  const script = `
+    (function () {
+      const command = ${JSON.stringify(loaderCommand)};
+      const button = document.getElementById("copyLoader");
+      const status = document.getElementById("loaderStatus");
+
+      async function copyLoader() {
+        try {
+          if (
+            navigator.clipboard &&
+            window.isSecureContext
+          ) {
+            await navigator.clipboard.writeText(command);
+          } else {
+            const field = document.createElement("textarea");
+            field.value = command;
+            field.setAttribute("readonly", "");
+            field.style.position = "fixed";
+            field.style.left = "-9999px";
+            field.style.opacity = "0";
+            document.body.appendChild(field);
+            field.select();
+            document.execCommand("copy");
+            field.remove();
+          }
+
+          button.classList.add("is-copied");
+          button.setAttribute("aria-label", "Copied");
+          button.title = "Copied";
+          status.textContent = "Copied";
+          status.className = "loader-status good";
+
+          setTimeout(function () {
+            button.classList.remove("is-copied");
+            button.setAttribute("aria-label", "Copy loader");
+            button.title = "Copy loader";
+            status.textContent = "";
+            status.className = "loader-status";
+          }, 1500);
+        } catch {
+          status.textContent =
+            "Select and copy the loader manually.";
+
+          status.className = "loader-status";
+        }
+      }
+
+      button.addEventListener("click", copyLoader);
+    })();
+  `;
+
+  return page(
+    "Nameless Hub",
+    "Official Nameless Hub loader.",
+    content,
+    script,
+    "/"
+  );
 }
 
 function getKeyPage(uid) {
@@ -1131,7 +1454,9 @@ function getKeyPage(uid) {
   return page(
     "Get Key · Nameless Hub",
     "Nameless Hub key delivery.",
-    body
+    body,
+    "",
+    "/get-key"
   );
 }
 
@@ -1160,6 +1485,79 @@ function errorPage(title, message, uid) {
       </main>
     `
   );
+}
+
+function isBrowserNavigation(req) {
+  const accept = String(
+    req.headers.accept || ""
+  ).toLowerCase();
+
+  const fetchMode = String(
+    req.headers["sec-fetch-mode"] || ""
+  ).toLowerCase();
+
+  const fetchDest = String(
+    req.headers["sec-fetch-dest"] || ""
+  ).toLowerCase();
+
+  return (
+    fetchMode === "navigate" ||
+    fetchDest === "document" ||
+    accept.includes("text/html")
+  );
+}
+
+async function getLoaderSource() {
+  const currentTime = Date.now();
+
+  if (
+    loaderSourceCache &&
+    currentTime - loaderSourceCachedAt <
+      LOADER_CACHE_MS
+  ) {
+    return loaderSourceCache;
+  }
+
+  const controller = new AbortController();
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    12000
+  );
+
+  try {
+    const response = await fetch(
+      LOADER_SOURCE_URL,
+      {
+        method: "GET",
+        headers: {
+          Accept: "text/plain,*/*",
+          "User-Agent": "Nameless-Hub-Loader",
+          "Cache-Control": "no-cache",
+        },
+        signal: controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Loader source returned ${response.status}`
+      );
+    }
+
+    const source = await response.text();
+
+    if (!source.trim()) {
+      throw new Error("Loader source is empty");
+    }
+
+    loaderSourceCache = source;
+    loaderSourceCachedAt = currentTime;
+
+    return source;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function isOldRenderHost(req) {
@@ -1193,30 +1591,91 @@ function redirectToPublicOrigin(req, res) {
 }
 
 app.get("/", (req, res) => {
-  const originalUrl = String(
-    req.originalUrl ||
-    req.url ||
-    "/"
-  );
-
-  const queryIndex = originalUrl.indexOf("?");
-
-  const getKeyPath =
-    "/get-key" +
-    (
-      queryIndex >= 0
-        ? originalUrl.slice(queryIndex)
-        : ""
-    );
-
   if (isOldRenderHost(req)) {
-    return res.redirect(
-      302,
-      `${PUBLIC_ORIGIN}${getKeyPath}`
-    );
+    return redirectToPublicOrigin(req, res);
   }
 
-  return res.redirect(302, getKeyPath);
+  const hasKeyFlowQuery = Boolean(
+    req.query.uid ||
+    req.query.mode ||
+    req.query.direct ||
+    req.query.legacy
+  );
+
+  if (hasKeyFlowQuery) {
+    const originalUrl = String(
+      req.originalUrl ||
+      req.url ||
+      "/"
+    );
+
+    const queryIndex = originalUrl.indexOf("?");
+
+    const getKeyPath =
+      "/get-key" +
+      (
+        queryIndex >= 0
+          ? originalUrl.slice(queryIndex)
+          : ""
+      );
+
+    return res.redirect(302, getKeyPath);
+  }
+
+  res.setHeader(
+    "Cache-Control",
+    "public, max-age=60"
+  );
+
+  return res
+    .status(200)
+    .type("html")
+    .send(homePage());
+});
+
+app.get("/loader", async (req, res) => {
+  if (isOldRenderHost(req)) {
+    return redirectToPublicOrigin(req, res);
+  }
+
+  if (isBrowserNavigation(req)) {
+    return res.redirect(302, PUBLIC_ORIGIN);
+  }
+
+  try {
+    const source = await getLoaderSource();
+
+    res.setHeader(
+      "Content-Type",
+      "text/plain; charset=utf-8"
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate"
+    );
+
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader(
+      "X-Content-Type-Options",
+      "nosniff"
+    );
+
+    return res.status(200).send(source);
+  } catch (error) {
+    console.error("LOADER_ERROR", error);
+
+    res.setHeader(
+      "Content-Type",
+      "text/plain; charset=utf-8"
+    );
+
+    return res
+      .status(503)
+      .send(
+        'error("Nameless Hub loader is temporarily unavailable")'
+      );
+  }
 });
 
 app.get("/ping", (req, res) => {
@@ -2611,6 +3070,6 @@ app.get(
 
 app.listen(PORT, () => {
   console.log(
-    `Key system running on port ${PORT}`
+    `Nameless Hub server running on port ${PORT}`
   );
 });
