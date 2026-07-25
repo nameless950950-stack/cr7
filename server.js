@@ -24,17 +24,10 @@ app.use(express.json({ limit: "32kb" }));
 const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const LOOTLABS_BASE_URL =
-  process.env.LOOTLABS_BASE_URL;
-
-const POSTBACK_SECRET =
-  process.env.POSTBACK_SECRET;
-
-const KEY_PEPPER =
-  process.env.KEY_PEPPER;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const LOOTLABS_BASE_URL = process.env.LOOTLABS_BASE_URL;
+const POSTBACK_SECRET = process.env.POSTBACK_SECRET;
+const KEY_PEPPER = process.env.KEY_PEPPER;
 
 const LINKVERTISE_URL = String(
   process.env.LINKVERTISE_URL ||
@@ -48,21 +41,16 @@ const LINKVERTISE_ANTI_BYPASS_TOKEN = String(
 const LINKVERTISE_ANTI_BYPASS_ENDPOINT =
   "https://publisher.linkvertise.com/api/v1/anti_bypassing";
 
-const KEY_TTL_HOURS = Number(
-  process.env.KEY_TTL_HOURS || 6
-);
-
+const KEY_TTL_HOURS = Number(process.env.KEY_TTL_HOURS || 6);
 const SESSION_TTL_MINUTES = Number(
   process.env.SESSION_TTL_MINUTES || 60
 );
 
 const PUBLIC_ORIGIN = String(
-  process.env.PUBLIC_ORIGIN ||
-  "https://nhhub.top"
+  process.env.PUBLIC_ORIGIN || "https://nhhub.top"
 ).replace(/\/+$/, "");
 
-const ADMIN_SECRET =
-  process.env.ADMIN_SECRET || "";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "";
 
 const LOADER_SOURCE_URL = String(
   process.env.LOADER_SOURCE_URL ||
@@ -71,50 +59,24 @@ const LOADER_SOURCE_URL = String(
 
 const LOADER_CACHE_MS = Math.max(
   1000,
-  Number(
-    process.env.LOADER_CACHE_MS ||
-    30000
-  )
+  Number(process.env.LOADER_CACHE_MS || 30000)
 );
 
 let loaderSourceCache = "";
 let loaderSourceCachedAt = 0;
 
 function requireEnv(name, value) {
-  if (
-    !value ||
-    String(value).trim() === ""
-  ) {
+  if (!value || String(value).trim() === "") {
     console.error("Missing env:", name);
     process.exit(1);
   }
 }
 
-requireEnv(
-  "SUPABASE_URL",
-  SUPABASE_URL
-);
-
-requireEnv(
-  "SUPABASE_SERVICE_ROLE_KEY",
-  SUPABASE_SERVICE_ROLE_KEY
-);
-
-requireEnv(
-  "LOOTLABS_BASE_URL",
-  LOOTLABS_BASE_URL
-);
-
-requireEnv(
-  "POSTBACK_SECRET",
-  POSTBACK_SECRET
-);
-
-requireEnv(
-  "KEY_PEPPER",
-  KEY_PEPPER
-);
-
+requireEnv("SUPABASE_URL", SUPABASE_URL);
+requireEnv("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY);
+requireEnv("LOOTLABS_BASE_URL", LOOTLABS_BASE_URL);
+requireEnv("POSTBACK_SECRET", POSTBACK_SECRET);
+requireEnv("KEY_PEPPER", KEY_PEPPER);
 requireEnv(
   "LINKVERTISE_ANTI_BYPASS_TOKEN",
   LINKVERTISE_ANTI_BYPASS_TOKEN
@@ -136,17 +98,11 @@ function now() {
 }
 
 function addMinutes(date, minutes) {
-  return new Date(
-    date.getTime() +
-    minutes * 60 * 1000
-  );
+  return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
 function addHours(date, hours) {
-  return new Date(
-    date.getTime() +
-    hours * 60 * 60 * 1000
-  );
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
 
 function sha256(text) {
@@ -157,9 +113,7 @@ function sha256(text) {
 }
 
 function hashKey(key) {
-  return sha256(
-    `${KEY_PEPPER}:${key}`
-  );
+  return sha256(`${KEY_PEPPER}:${key}`);
 }
 
 function normalizeUid(uid) {
@@ -173,11 +127,7 @@ function normalizeUid(uid) {
 }
 
 function normalizeSid(sid) {
-  sid = String(
-    sid || ""
-  )
-    .trim()
-    .toLowerCase();
+  sid = String(sid || "").trim().toLowerCase();
 
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
@@ -191,17 +141,9 @@ function normalizeSid(sid) {
 }
 
 function normalizeKey(key) {
-  key = String(
-    key || ""
-  )
-    .trim()
-    .toUpperCase();
+  key = String(key || "").trim().toUpperCase();
 
-  if (
-    !/^NL-[A-Z0-9]{4}(-[A-Z0-9]{4}){5}$/.test(
-      key
-    )
-  ) {
+  if (!/^NL-[A-Z0-9]{4}(-[A-Z0-9]{4}){5}$/.test(key)) {
     return null;
   }
 
@@ -209,13 +151,9 @@ function normalizeKey(key) {
 }
 
 function normalizeLinkvertiseHash(value) {
-  const hash = String(
-    value || ""
-  ).trim();
+  const hash = String(value || "").trim();
 
-  if (
-    !/^[A-Za-z0-9]{64}$/.test(hash)
-  ) {
+  if (!/^[A-Za-z0-9]{64}$/.test(hash)) {
     return null;
   }
 
@@ -223,64 +161,37 @@ function normalizeLinkvertiseHash(value) {
 }
 
 function firstQueryValue(value) {
-  return Array.isArray(value)
-    ? value[0]
-    : value;
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function randomChars(length) {
-  const alphabet =
-    "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-  const bytes =
-    crypto.randomBytes(length);
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(length);
 
   let output = "";
 
-  for (
-    let i = 0;
-    i < length;
-    i++
-  ) {
-    output +=
-      alphabet[
-        bytes[i] %
-        alphabet.length
-      ];
+  for (let i = 0; i < length; i++) {
+    output += alphabet[bytes[i] % alphabet.length];
   }
 
   return output;
 }
 
 function makeKey() {
-  const raw =
-    randomChars(24);
-
-  return (
-    "NL-" +
-    raw
-      .match(/.{1,4}/g)
-      .join("-")
-  );
+  const raw = randomChars(24);
+  return "NL-" + raw.match(/.{1,4}/g).join("-");
 }
 
 function makeLootlabsUrl(sid) {
-  const base = String(
-    LOOTLABS_BASE_URL
-  ).trim();
+  const base = String(LOOTLABS_BASE_URL).trim();
 
-  if (
-    base.includes("puid=")
-  ) {
+  if (base.includes("puid=")) {
     throw new Error(
       "LOOTLABS_BASE_URL must not contain puid="
     );
   }
 
-  const joiner =
-    base.includes("?")
-      ? "&"
-      : "?";
+  const joiner = base.includes("?") ? "&" : "?";
 
   return (
     base +
@@ -290,9 +201,7 @@ function makeLootlabsUrl(sid) {
   );
 }
 
-async function verifyLinkvertiseHash(
-  hash
-) {
+async function verifyLinkvertiseHash(hash) {
   const url = new URL(
     LINKVERTISE_ANTI_BYPASS_ENDPOINT
   );
@@ -302,13 +211,9 @@ async function verifyLinkvertiseHash(
     LINKVERTISE_ANTI_BYPASS_TOKEN
   );
 
-  url.searchParams.set(
-    "hash",
-    hash
-  );
+  url.searchParams.set("hash", hash);
 
-  const controller =
-    new AbortController();
+  const controller = new AbortController();
 
   const timeout = setTimeout(
     () => controller.abort(),
@@ -316,31 +221,19 @@ async function verifyLinkvertiseHash(
   );
 
   try {
-    const response =
-      await fetch(
-        url,
-        {
-          method: "POST",
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "text/plain,*/*",
+        "User-Agent":
+          "Nameless-Hub-Linkvertise-Verification",
+      },
+      signal: controller.signal,
+    });
 
-          headers: {
-            Accept:
-              "text/plain,*/*",
-
-            "User-Agent":
-              "Nameless-Hub-Linkvertise-Verification",
-          },
-
-          signal:
-            controller.signal,
-        }
-      );
-
-    const body =
-      (
-        await response.text()
-      )
-        .trim()
-        .toUpperCase();
+    const body = (await response.text())
+      .trim()
+      .toUpperCase();
 
     if (!response.ok) {
       throw new Error(
@@ -355,11 +248,7 @@ async function verifyLinkvertiseHash(
       };
     }
 
-    if (
-      body.includes(
-        "INVALID TOKEN"
-      )
-    ) {
+    if (body.includes("INVALID TOKEN")) {
       return {
         ok: false,
         reason: "invalid_token",
@@ -377,71 +266,43 @@ async function verifyLinkvertiseHash(
 
 function clientIp(req) {
   return (
-    req.headers[
-      "cf-connecting-ip"
-    ] ||
-
-    req.headers[
-      "x-forwarded-for"
-    ]
+    req.headers["cf-connecting-ip"] ||
+    req.headers["x-forwarded-for"]
       ?.split(",")[0]
       ?.trim() ||
-
     req.ip ||
     ""
   );
 }
 
-function jsonError(
-  res,
-  status,
-  message,
-  extra = {}
-) {
-  return res
-    .status(status)
-    .json({
-      ok: false,
-      message,
-      ...extra,
-    });
+function jsonError(res, status, message, extra = {}) {
+  return res.status(status).json({
+    ok: false,
+    message,
+    ...extra,
+  });
 }
 
 function parseCookies(req) {
-  const header =
-    req.headers.cookie || "";
-
+  const header = req.headers.cookie || "";
   const cookies = {};
 
-  header
-    .split(";")
-    .forEach((part) => {
-      const index =
-        part.indexOf("=");
+  header.split(";").forEach((part) => {
+    const index = part.indexOf("=");
 
-      if (index === -1) {
-        return;
-      }
+    if (index === -1) {
+      return;
+    }
 
-      const key =
-        part
-          .slice(0, index)
-          .trim();
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
 
-      const value =
-        part
-          .slice(index + 1)
-          .trim();
-
-      try {
-        cookies[key] =
-          decodeURIComponent(
-            value
-          );
-      } catch {
-        cookies[key] = value;
-      }
-    });
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch {
+      cookies[key] = value;
+    }
+  });
 
   return cookies;
 }
@@ -454,57 +315,35 @@ function setKeyCookies(
 ) {
   const maxAge = Math.max(
     SESSION_TTL_MINUTES * 60,
-    Math.ceil(
-      KEY_TTL_HOURS *
-      60 *
-      60
-    )
+    Math.ceil(KEY_TTL_HOURS * 60 * 60)
   );
 
-  res.setHeader(
-    "Set-Cookie",
-    [
-      `ks_sid=${encodeURIComponent(
-        sid
-      )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+  res.setHeader("Set-Cookie", [
+    `ks_sid=${encodeURIComponent(
+      sid
+    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
 
-      `ks_uid=${encodeURIComponent(
-        uid
-      )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+    `ks_uid=${encodeURIComponent(
+      uid
+    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
 
-      `ks_method=${encodeURIComponent(
-        method
-      )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
-    ]
-  );
+    `ks_method=${encodeURIComponent(
+      method
+    )}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`,
+  ]);
 }
 
-async function getSessionByCookies(
-  req
-) {
-  const cookies =
-    parseCookies(req);
+async function getSessionByCookies(req) {
+  const cookies = parseCookies(req);
 
-  const sid =
-    normalizeSid(
-      cookies.ks_sid
-    );
-
-  const uid =
-    normalizeUid(
-      cookies.ks_uid
-    );
-
-  const cookieMethod =
-    String(
-      cookies.ks_method || ""
-    ).toLowerCase();
+  const sid = normalizeSid(cookies.ks_sid);
+  const uid = normalizeUid(cookies.ks_uid);
 
   const method = [
     "linkvertise",
     "lootlabs",
-  ].includes(cookieMethod)
-    ? cookieMethod
+  ].includes(String(cookies.ks_method || "").toLowerCase())
+    ? String(cookies.ks_method).toLowerCase()
     : "lootlabs";
 
   if (!sid || !uid) {
@@ -517,10 +356,7 @@ async function getSessionByCookies(
     };
   }
 
-  const {
-    data,
-    error,
-  } = await supabase
+  const { data, error } = await supabase
     .from("key_sessions")
     .select("*")
     .eq("sid", sid)
@@ -546,27 +382,19 @@ async function getSessionByCookies(
   };
 }
 
-const publicLimiter =
-  rateLimit({
-    windowMs:
-      60 * 1000,
+const publicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-    limit: 90,
-
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
-const strictLimiter =
-  rateLimit({
-    windowMs:
-      60 * 1000,
-
-    limit: 30,
-
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 app.use(publicLimiter);
 
@@ -604,7 +432,6 @@ body {
   overflow-x: hidden;
   color: var(--text);
   background: var(--bg);
-
   font-family:
     Inter,
     ui-sans-serif,
@@ -612,9 +439,7 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-
-  -webkit-font-smoothing:
-    antialiased;
+  -webkit-font-smoothing: antialiased;
 }
 
 body::before {
@@ -625,9 +450,7 @@ body::before {
   opacity: .05;
   mix-blend-mode: overlay;
   pointer-events: none;
-
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 .lava-bg {
@@ -651,13 +474,7 @@ body::before {
   width: 46vmax;
   height: 46vmax;
   background: var(--blob-a);
-
-  animation:
-    drift-1
-    10s
-    ease-in-out
-    infinite
-    alternate;
+  animation: drift-1 10s ease-in-out infinite alternate;
 }
 
 .lava-bg .b2 {
@@ -666,13 +483,7 @@ body::before {
   width: 34vmax;
   height: 34vmax;
   background: var(--blob-b);
-
-  animation:
-    drift-2
-    13s
-    ease-in-out
-    infinite
-    alternate;
+  animation: drift-2 13s ease-in-out infinite alternate;
 }
 
 .lava-bg .b3 {
@@ -681,13 +492,7 @@ body::before {
   width: 38vmax;
   height: 38vmax;
   background: var(--blob-c);
-
-  animation:
-    drift-3
-    9s
-    ease-in-out
-    infinite
-    alternate;
+  animation: drift-3 9s ease-in-out infinite alternate;
 }
 
 .lava-bg .b4 {
@@ -696,114 +501,49 @@ body::before {
   width: 30vmax;
   height: 30vmax;
   background: var(--blob-d);
-
-  animation:
-    drift-4
-    15s
-    ease-in-out
-    infinite
-    alternate;
+  animation: drift-4 15s ease-in-out infinite alternate;
 }
 
 .lava-bg::after {
   content: "";
   position: absolute;
   inset: 0;
-
-  background:
-    radial-gradient(
-      circle at 50% 40%,
-      transparent 0%,
-      var(--bg) 88%
-    );
+  background: radial-gradient(
+    circle at 50% 40%,
+    transparent 0%,
+    var(--bg) 88%
+  );
 }
 
 @keyframes drift-1 {
-  0% {
-    transform:
-      translate3d(0, 0, 0)
-      scale(1);
-  }
-
-  100% {
-    transform:
-      translate3d(
-        10vmax,
-        14vmax,
-        0
-      )
-      scale(1.15);
-  }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(10vmax, 14vmax, 0) scale(1.15); }
 }
 
 @keyframes drift-2 {
-  0% {
-    transform:
-      translate3d(0, 0, 0)
-      scale(1);
-  }
-
-  100% {
-    transform:
-      translate3d(
-        -12vmax,
-        10vmax,
-        0
-      )
-      scale(.9);
-  }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-12vmax, 10vmax, 0) scale(.9); }
 }
 
 @keyframes drift-3 {
-  0% {
-    transform:
-      translate3d(0, 0, 0)
-      scale(1);
-  }
-
-  100% {
-    transform:
-      translate3d(
-        9vmax,
-        -12vmax,
-        0
-      )
-      scale(1.1);
-  }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(9vmax, -12vmax, 0) scale(1.1); }
 }
 
 @keyframes drift-4 {
-  0% {
-    transform:
-      translate3d(0, 0, 0)
-      scale(1);
-  }
-
-  100% {
-    transform:
-      translate3d(
-        -8vmax,
-        -9vmax,
-        0
-      )
-      scale(1.2);
-  }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-8vmax, -9vmax, 0) scale(1.2); }
 }
 
-@media (
-  prefers-reduced-motion:
-  reduce
-) {
+@media (prefers-reduced-motion: reduce) {
   .lava-bg span {
-    animation:
-      none !important;
+    animation: none !important;
   }
 }
 
 button,
 a {
-  -webkit-tap-highlight-color:
-    transparent;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .page {
@@ -814,7 +554,6 @@ a {
   min-height: 100svh;
   margin: auto;
   padding: 28px 18px;
-
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -822,7 +561,6 @@ a {
 
 .brand {
   margin-bottom: 42px;
-
   display: flex;
   align-items: center;
   gap: 10px;
@@ -833,53 +571,20 @@ a {
   height: 11px;
   border: 2px solid #fff;
   border-radius: 3px;
-
-  transform:
-    rotate(45deg);
-
-  filter:
-    drop-shadow(
-      0
-      0
-      8px
-      rgba(255, 70, 85, .6)
-    );
-
-  animation:
-    mark-pulse
-    3.2s
-    ease-in-out
-    infinite;
+  transform: rotate(45deg);
+  filter: drop-shadow(0 0 8px rgba(255, 70, 85, .6));
+  animation: mark-pulse 3.2s ease-in-out infinite;
 }
 
 @keyframes mark-pulse {
-  0%,
-  100% {
-    filter:
-      drop-shadow(
-        0
-        0
-        6px
-        rgba(255, 70, 85, .45)
-      );
-
-    transform:
-      rotate(45deg)
-      scale(1);
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(255, 70, 85, .45));
+    transform: rotate(45deg) scale(1);
   }
 
   50% {
-    filter:
-      drop-shadow(
-        0
-        0
-        13px
-        rgba(255, 70, 85, .85)
-      );
-
-    transform:
-      rotate(45deg)
-      scale(1.12);
+    filter: drop-shadow(0 0 13px rgba(255, 70, 85, .85));
+    transform: rotate(45deg) scale(1.12);
   }
 }
 
@@ -892,29 +597,11 @@ a {
 
 h1 {
   margin: 0;
-
-  background:
-    linear-gradient(
-      135deg,
-      #ffffff 45%,
-      #ff8a95 120%
-    );
-
-  -webkit-background-clip:
-    text;
-
-  background-clip:
-    text;
-
+  background: linear-gradient(135deg, #ffffff 45%, #ff8a95 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
   color: transparent;
-
-  font-size:
-    clamp(
-      32px,
-      8.5vw,
-      44px
-    );
-
+  font-size: clamp(32px, 8.5vw, 44px);
   font-weight: 760;
   line-height: 1;
   letter-spacing: -.04em;
@@ -932,35 +619,15 @@ h1 {
   overflow: hidden;
   margin-top: 26px;
   padding: 18px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .12);
-
+  border: 1px solid rgba(255, 255, 255, .12);
   border-radius: 28px;
-
-  background:
-    rgba(18, 18, 21, .5);
-
-  backdrop-filter:
-    blur(34px)
-    saturate(190%)
-    brightness(1.05);
-
-  -webkit-backdrop-filter:
-    blur(34px)
-    saturate(190%)
-    brightness(1.05);
-
+  background: rgba(18, 18, 21, .5);
+  backdrop-filter: blur(34px) saturate(190%) brightness(1.05);
+  -webkit-backdrop-filter: blur(34px) saturate(190%) brightness(1.05);
   box-shadow:
-    0 24px 60px -24px
-      rgba(0, 0, 0, .65),
-
-    inset 0 1px 0
-      rgba(255, 255, 255, .18),
-
-    inset 0 -1px 0
-      rgba(255, 60, 75, .12);
+    0 24px 60px -24px rgba(0, 0, 0, .65),
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 -1px 0 rgba(255, 60, 75, .12);
 }
 
 .card::before,
@@ -974,23 +641,14 @@ h1 {
   z-index: 0;
   pointer-events: none;
   border-radius: 50%;
-
-  background:
-    radial-gradient(
-      closest-side,
-      rgba(255, 255, 255, .32),
-      rgba(255, 255, 255, 0)
-        72%
-    );
-
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 255, 255, .32),
+    rgba(255, 255, 255, 0) 72%
+  );
   filter: blur(16px);
   opacity: .5;
-
-  animation:
-    sheen-drift
-    9s
-    ease-in-out
-    infinite;
+  animation: sheen-drift 9s ease-in-out infinite;
 }
 
 .method::before {
@@ -1001,20 +659,13 @@ h1 {
 }
 
 @keyframes sheen-drift {
-  0%,
-  100% {
-    transform:
-      translateX(-4%)
-      translateY(0);
-
+  0%, 100% {
+    transform: translateX(-4%) translateY(0);
     opacity: .4;
   }
 
   50% {
-    transform:
-      translateX(4%)
-      translateY(2%);
-
+    transform: translateX(4%) translateY(2%);
     opacity: .6;
   }
 }
@@ -1025,26 +676,13 @@ h1 {
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-
-  background:
-    radial-gradient(
-      240px circle
-      at
-      var(--mx, 50%)
-      var(--my, 50%),
-
-      rgba(255, 110, 120, .18),
-
-      transparent 72%
-    );
-
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 110, 120, .18),
+    transparent 72%
+  );
   opacity: 0;
-
-  transition:
-    opacity
-    .4s
-    ease;
-
+  transition: opacity .4s ease;
   pointer-events: none;
 }
 
@@ -1052,11 +690,7 @@ h1 {
   opacity: 1;
 }
 
-@media (
-  hover: hover
-) and (
-  pointer: fine
-) {
+@media (hover: hover) and (pointer: fine) {
   .spot:hover::after {
     opacity: 1;
   }
@@ -1070,29 +704,15 @@ h1 {
 
 .account {
   padding: 12px 14px;
-
   display: flex;
   align-items: center;
-  justify-content:
-    space-between;
+  justify-content: space-between;
   gap: 12px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .1);
-
+  border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 16px;
-
-  background:
-    rgba(255, 255, 255, .05);
-
-  backdrop-filter:
-    blur(14px)
-    saturate(150%);
-
-  -webkit-backdrop-filter:
-    blur(14px)
-    saturate(150%);
+  background: rgba(255, 255, 255, .05);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
 }
 
 .account span,
@@ -1107,10 +727,7 @@ h1 {
 .account strong,
 .key,
 .timer {
-  font-family:
-    "SFMono-Regular",
-    Consolas,
-    monospace;
+  font-family: "SFMono-Regular", Consolas, monospace;
 }
 
 .account strong {
@@ -1123,79 +740,34 @@ h1 {
   overflow: hidden;
   margin-top: 14px;
   padding: 12px;
-
   display: grid;
-
-  grid-template-columns:
-    44px
-    1fr
-    18px;
-
+  grid-template-columns: 44px 1fr 18px;
   align-items: center;
   gap: 12px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .12);
-
+  border: 1px solid rgba(255, 255, 255, .12);
   border-radius: 20px;
-
-  background:
-    rgba(255, 255, 255, .04);
-
+  background: rgba(255, 255, 255, .04);
   cursor: pointer;
-
   transition:
-    border-color
-      .25s
-      cubic-bezier(.16, 1, .3, 1),
-
-    background
-      .25s
-      cubic-bezier(.16, 1, .3, 1),
-
-    transform
-      .25s
-      cubic-bezier(.16, 1, .3, 1),
-
-    box-shadow
-      .25s
-      cubic-bezier(.16, 1, .3, 1);
+    border-color .25s cubic-bezier(.16, 1, .3, 1),
+    background .25s cubic-bezier(.16, 1, .3, 1),
+    transform .25s cubic-bezier(.16, 1, .3, 1),
+    box-shadow .25s cubic-bezier(.16, 1, .3, 1);
 }
 
 .method.is-active {
-  border-color:
-    rgba(255, 255, 255, .24);
-
-  background:
-    rgba(255, 255, 255, .07);
-
-  transform:
-    translateY(-1px);
-
-  box-shadow:
-    0 14px 30px -18px
-    rgba(255, 60, 75, .5);
+  border-color: rgba(255, 255, 255, .24);
+  background: rgba(255, 255, 255, .07);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -18px rgba(255, 60, 75, .5);
 }
 
-@media (
-  hover: hover
-) and (
-  pointer: fine
-) {
+@media (hover: hover) and (pointer: fine) {
   .method:hover {
-    border-color:
-      rgba(255, 255, 255, .22);
-
-    background:
-      rgba(255, 255, 255, .06);
-
-    transform:
-      translateY(-2px);
-
-    box-shadow:
-      0 16px 34px -18px
-      rgba(255, 60, 75, .45);
+    border-color: rgba(255, 255, 255, .22);
+    background: rgba(255, 255, 255, .06);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 34px -18px rgba(255, 60, 75, .45);
   }
 }
 
@@ -1209,10 +781,8 @@ h1 {
   width: 44px;
   height: 44px;
   overflow: hidden;
-
   display: grid;
   place-items: center;
-
   border-radius: 14px;
   background: #fff;
 }
@@ -1272,28 +842,14 @@ h1 {
   width: 100%;
   min-height: 50px;
   margin-top: 14px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .92);
-
+  border: 1px solid rgba(255, 255, 255, .92);
   border-radius: 999px;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
-  background:
-    rgba(255, 255, 255, .94);
-
-  backdrop-filter:
-    blur(18px)
-    saturate(160%);
-
-  -webkit-backdrop-filter:
-    blur(18px)
-    saturate(160%);
-
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
   color: #09090a;
   font: inherit;
   font-size: 12px;
@@ -1302,26 +858,13 @@ h1 {
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
-
   box-shadow:
-    0 14px 30px -14px
-      rgba(255, 255, 255, .3),
-
-    inset 0 1px 0
-      rgba(255, 255, 255, .8);
-
+    0 14px 30px -14px rgba(255, 255, 255, .3),
+    inset 0 1px 0 rgba(255, 255, 255, .8);
   transition:
-    transform
-      .2s
-      cubic-bezier(.16, 1, .3, 1),
-
-    box-shadow
-      .2s
-      cubic-bezier(.16, 1, .3, 1),
-
-    background
-      .2s
-      ease;
+    transform .2s cubic-bezier(.16, 1, .3, 1),
+    box-shadow .2s cubic-bezier(.16, 1, .3, 1),
+    background .2s ease;
 }
 
 .button::before {
@@ -1332,15 +875,11 @@ h1 {
   top: -60%;
   height: 90%;
   border-radius: 50%;
-
-  background:
-    radial-gradient(
-      closest-side,
-      rgba(255, 255, 255, .8),
-      rgba(255, 255, 255, 0)
-        72%
-    );
-
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 255, 255, .8),
+    rgba(255, 255, 255, 0) 72%
+  );
   filter: blur(6px);
   pointer-events: none;
 }
@@ -1352,30 +891,20 @@ h1 {
   bottom: 0;
   left: -40%;
   width: 30%;
-
-  background:
-    linear-gradient(
-      115deg,
-      transparent,
-      rgba(255, 90, 105, .55),
-      transparent
-    );
-
-  transform:
-    skewX(-18deg);
-
+  background: linear-gradient(
+    115deg,
+    transparent,
+    rgba(255, 90, 105, .55),
+    transparent
+  );
+  transform: skewX(-18deg);
   opacity: 0;
 }
 
 .button:active::after,
 .button.is-active::after {
   opacity: 1;
-
-  animation:
-    sheen
-    1s
-    ease
-    forwards;
+  animation: sheen 1s ease forwards;
 }
 
 @keyframes sheen {
@@ -1388,41 +917,22 @@ h1 {
   }
 }
 
-@media (
-  hover: hover
-) and (
-  pointer: fine
-) {
+@media (hover: hover) and (pointer: fine) {
   .button:hover::after {
     opacity: 1;
-
-    animation:
-      sheen
-      1s
-      ease
-      forwards;
+    animation: sheen 1s ease forwards;
   }
 
   .button:hover {
     background: #ffffff;
-
-    transform:
-      translateY(-2px);
-
-    box-shadow:
-      0 18px 38px -14px
-      rgba(255, 70, 85, .45);
+    transform: translateY(-2px);
+    box-shadow: 0 18px 38px -14px rgba(255, 70, 85, .45);
   }
 }
 
 .button:active {
-  transform:
-    translateY(0)
-    scale(.98);
-
-  box-shadow:
-    0 10px 22px -14px
-    rgba(255, 70, 85, .4);
+  transform: translateY(0) scale(.98);
+  box-shadow: 0 10px 22px -14px rgba(255, 70, 85, .4);
 }
 
 .button:disabled {
@@ -1450,10 +960,8 @@ h1 {
 
 .loader-wrap {
   min-height: 144px;
-
   display: grid;
   place-items: center;
-
   text-align: center;
 }
 
@@ -1461,19 +969,10 @@ h1 {
   width: 30px;
   height: 30px;
   margin: 0 auto 15px;
-
-  border:
-    2px solid
-    rgba(255, 255, 255, .1);
-
+  border: 2px solid rgba(255, 255, 255, .1);
   border-top-color: #fff;
   border-radius: 50%;
-
-  animation:
-    spin
-    .8s
-    linear
-    infinite;
+  animation: spin .8s linear infinite;
 }
 
 .loader-wrap strong {
@@ -1492,38 +991,15 @@ h1 {
 .key {
   margin-top: 9px;
   padding: 16px 14px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .14);
-
+  border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 18px;
-
-  background:
-    rgba(0, 0, 0, .3);
-
-  backdrop-filter:
-    blur(16px)
-    saturate(160%);
-
-  -webkit-backdrop-filter:
-    blur(16px)
-    saturate(160%);
-
-  box-shadow:
-    inset 0 1px 0
-    rgba(255, 255, 255, .1);
-
+  background: rgba(0, 0, 0, .3);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
   color: #fff;
   text-align: center;
-
-  font-size:
-    clamp(
-      12px,
-      3.6vw,
-      14px
-    );
-
+  font-size: clamp(12px, 3.6vw, 14px);
   font-weight: 700;
   letter-spacing: .02em;
   line-height: 1.5;
@@ -1533,11 +1009,9 @@ h1 {
 
 .timer-row {
   margin-top: 17px;
-
   display: flex;
   align-items: end;
-  justify-content:
-    space-between;
+  justify-content: space-between;
 }
 
 .timer {
@@ -1550,9 +1024,7 @@ h1 {
   margin: 10px 0 4px;
   overflow: hidden;
   border-radius: 99px;
-
-  background:
-    rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .08);
 }
 
 .progress span {
@@ -1560,18 +1032,8 @@ h1 {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-
-  background:
-    linear-gradient(
-      90deg,
-      #ff929e,
-      #ffffff
-    );
-
-  transition:
-    width
-    1s
-    linear;
+  background: linear-gradient(90deg, #ff929e, #ffffff);
+  transition: width 1s linear;
 }
 
 .confetti-piece {
@@ -1582,7 +1044,6 @@ h1 {
   height: 10px;
   pointer-events: none;
   opacity: 0;
-
   animation:
     confetti-fall
     var(--duration)
@@ -1603,13 +1064,8 @@ h1 {
 @keyframes confetti-fall {
   0% {
     opacity: 0;
-
     transform:
-      translate3d(
-        0,
-        -12px,
-        0
-      )
+      translate3d(0, -12px, 0)
       rotate(0deg);
   }
 
@@ -1619,16 +1075,9 @@ h1 {
 
   100% {
     opacity: 0;
-
     transform:
-      translate3d(
-        var(--drift),
-        52vh,
-        0
-      )
-      rotate(
-        var(--rotation)
-      );
+      translate3d(var(--drift), 52vh, 0)
+      rotate(var(--rotation));
   }
 }
 
@@ -1638,15 +1087,8 @@ h1 {
 
 .home-reveal {
   opacity: 0;
-
-  transform:
-    translateY(14px);
-
-  animation:
-    home-reveal-in
-    .7s
-    cubic-bezier(.16, 1, .3, 1)
-    forwards;
+  transform: translateY(14px);
+  animation: home-reveal-in .7s cubic-bezier(.16, 1, .3, 1) forwards;
 }
 
 @keyframes home-reveal-in {
@@ -1656,10 +1098,7 @@ h1 {
   }
 }
 
-@media (
-  prefers-reduced-motion:
-  reduce
-) {
+@media (prefers-reduced-motion: reduce) {
   .home-reveal {
     opacity: 1;
     transform: none;
@@ -1674,14 +1113,7 @@ h1 {
 .home-title {
   max-width: 100%;
   margin: 0 auto;
-
-  font-size:
-    clamp(
-      48px,
-      11vw,
-      82px
-    );
-
+  font-size: clamp(48px, 11vw, 82px);
   line-height: .92;
   letter-spacing: -.05em;
   text-align: center;
@@ -1696,13 +1128,8 @@ h1 {
 
 .loader-row {
   min-width: 0;
-
   display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    52px;
-
+  grid-template-columns: minmax(0, 1fr) 52px;
   gap: 10px;
   align-items: stretch;
 }
@@ -1712,33 +1139,16 @@ h1 {
   min-height: 52px;
   padding: 0 17px;
   overflow-x: auto;
-
   display: flex;
   align-items: center;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .1);
-
+  border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 16px;
-
-  background:
-    rgba(0, 0, 0, .34);
-
+  background: rgba(0, 0, 0, .34);
   box-shadow:
-    inset 0 1px 0
-      rgba(255, 255, 255, .08),
-
-    0 14px 30px -24px
-      rgba(0, 0, 0, .9);
-
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 14px 30px -24px rgba(0, 0, 0, .9);
   color: #fff;
-
-  font-family:
-    "SFMono-Regular",
-    Consolas,
-    monospace;
-
+  font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
   white-space: nowrap;
@@ -1754,45 +1164,19 @@ h1 {
   overflow: hidden;
   width: 52px;
   min-height: 52px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, .15);
-
+  border: 1px solid rgba(255, 255, 255, .15);
   border-radius: 16px;
-
   display: grid;
   place-items: center;
-
-  background:
-    rgba(255, 255, 255, .08);
-
-  backdrop-filter:
-    blur(18px)
-    saturate(170%);
-
-  -webkit-backdrop-filter:
-    blur(18px)
-    saturate(170%);
-
+  background: rgba(255, 255, 255, .08);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
   cursor: pointer;
-
   transition:
-    transform
-      .22s
-      cubic-bezier(.16, 1, .3, 1),
-
-    border-color
-      .22s
-      ease,
-
-    background
-      .22s
-      ease,
-
-    box-shadow
-      .22s
-      ease;
+    transform .22s cubic-bezier(.16, 1, .3, 1),
+    border-color .22s ease,
+    background .22s ease,
+    box-shadow .22s ease;
 }
 
 .copy-icon-button img {
@@ -1800,18 +1184,11 @@ h1 {
   height: 20px;
   display: block;
   opacity: .88;
-
-  filter:
-    invert(1);
-
-  transition:
-    transform
-    .25s
-    cubic-bezier(.16, 1, .3, 1);
+  filter: invert(1);
+  transition: transform .25s cubic-bezier(.16, 1, .3, 1);
 }
 
-.copy-icon-button
-.copy-fallback {
+.copy-icon-button .copy-fallback {
   display: none;
   color: #fff;
   font-size: 9px;
@@ -1823,37 +1200,21 @@ h1 {
   content: "";
   position: absolute;
   inset: 0;
-
-  background:
-    radial-gradient(
-      circle at 50% 20%,
-      rgba(255, 146, 158, .32),
-      transparent 70%
-    );
-
+  background: radial-gradient(
+    circle at 50% 20%,
+    rgba(255, 146, 158, .32),
+    transparent 70%
+  );
   opacity: 0;
-
-  transition:
-    opacity
-    .25s
-    ease;
-
+  transition: opacity .25s ease;
   pointer-events: none;
 }
 
 .copy-icon-button:hover {
-  border-color:
-    rgba(255, 255, 255, .3);
-
-  background:
-    rgba(255, 255, 255, .12);
-
-  transform:
-    translateY(-2px);
-
-  box-shadow:
-    0 16px 30px -20px
-    rgba(255, 70, 85, .8);
+  border-color: rgba(255, 255, 255, .3);
+  background: rgba(255, 255, 255, .12);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px -20px rgba(255, 70, 85, .8);
 }
 
 .copy-icon-button:hover::after,
@@ -1893,9 +1254,7 @@ h1 {
   line-height: 1.6;
 }
 
-@media (
-  max-width: 520px
-) {
+@media (max-width: 520px) {
   .page {
     padding: 22px 15px;
   }
@@ -1914,13 +1273,7 @@ h1 {
   }
 
   .home-title {
-    font-size:
-      clamp(
-        38px,
-        12.5vw,
-        60px
-      );
-
+    font-size: clamp(38px, 12.5vw, 60px);
     letter-spacing: -.03em;
   }
 
@@ -1929,10 +1282,7 @@ h1 {
   }
 
   .loader-row {
-    grid-template-columns:
-      minmax(0, 1fr)
-      50px;
-
+    grid-template-columns: minmax(0, 1fr) 50px;
     gap: 8px;
   }
 
@@ -1960,75 +1310,30 @@ function brand() {
 
 const spotlightScript = `
   (function () {
-    var els =
-      document.querySelectorAll(
-        ".spot"
-      );
+    var els = document.querySelectorAll(".spot");
 
-    function setPos(
-      el,
-      x,
-      y
-    ) {
-      var rect =
-        el.getBoundingClientRect();
-
-      el.style.setProperty(
-        "--mx",
-        (x - rect.left) + "px"
-      );
-
-      el.style.setProperty(
-        "--my",
-        (y - rect.top) + "px"
-      );
+    function setPos(el, x, y) {
+      var rect = el.getBoundingClientRect();
+      el.style.setProperty("--mx", (x - rect.left) + "px");
+      el.style.setProperty("--my", (y - rect.top) + "px");
     }
 
     els.forEach(function (el) {
-      el.addEventListener(
-        "pointermove",
-        function (e) {
-          setPos(
-            el,
-            e.clientX,
-            e.clientY
-          );
-        }
-      );
+      el.addEventListener("pointermove", function (e) {
+        setPos(el, e.clientX, e.clientY);
+      });
 
-      el.addEventListener(
-        "pointerdown",
-        function (e) {
-          setPos(
-            el,
-            e.clientX,
-            e.clientY
-          );
+      el.addEventListener("pointerdown", function (e) {
+        setPos(el, e.clientX, e.clientY);
+        el.classList.add("is-active");
+      });
 
-          el.classList.add(
-            "is-active"
-          );
-        }
-      );
-
-      [
-        "pointerup",
-        "pointercancel",
-        "pointerleave"
-      ].forEach(function (type) {
-        el.addEventListener(
-          type,
-          function () {
-            setTimeout(
-              function () {
-                el.classList.remove(
-                  "is-active"
-                );
-              },
-              260
-            );
-          }
-        );
+      ["pointerup", "pointercancel", "pointerleave"].forEach(function (type) {
+        el.addEventListener(type, function () {
+          setTimeout(function () {
+            el.classList.remove("is-active");
+          }, 260);
+        });
       });
     });
   })();
@@ -2043,7 +1348,6 @@ function page(
 ) {
   return `
     <!doctype html>
-
     <html lang="en">
       <head>
         <meta charset="utf-8">
@@ -2073,20 +1377,13 @@ function page(
           content="${PUBLIC_ORIGIN}${canonicalPath}"
         >
 
-        <title>
-          ${title}
-        </title>
+        <title>${title}</title>
 
-        <style>
-          ${siteCss}
-        </style>
+        <style>${siteCss}</style>
       </head>
 
       <body>
-        <div
-          class="lava-bg"
-          aria-hidden="true"
-        >
+        <div class="lava-bg" aria-hidden="true">
           <span class="b1"></span>
           <span class="b2"></span>
           <span class="b3"></span>
@@ -2094,16 +1391,8 @@ function page(
         </div>
 
         ${content}
-
-        <script>
-          ${spotlightScript}
-        </script>
-
-        ${
-          script
-            ? `<script>${script}</script>`
-            : ""
-        }
+        <script>${spotlightScript}</script>
+        ${script ? `<script>${script}</script>` : ""}
       </body>
     </html>
   `;
@@ -2114,20 +1403,10 @@ function homePage() {
     `loadstring(game:HttpGet("${PUBLIC_ORIGIN}/loader"))()`;
 
   const content = `
-    <main
-      class="page home-page"
-    >
-      <h1
-        class="home-title home-reveal"
-        style="animation-delay:.05s"
-      >
-        Nameless Hub
-      </h1>
+    <main class="page home-page">
+      <h1 class="home-title home-reveal" style="animation-delay:.05s">Nameless Hub</h1>
 
-      <section
-        class="card loader-card spot home-reveal"
-        style="animation-delay:.16s"
-      >
+      <section class="card loader-card spot home-reveal" style="animation-delay:.16s">
         <div class="loader-row">
           <code
             id="loaderCode"
@@ -2149,11 +1428,7 @@ function homePage() {
               onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
             >
 
-            <span
-              class="copy-fallback"
-            >
-              COPY
-            </span>
+            <span class="copy-fallback">COPY</span>
           </button>
         </div>
 
@@ -2164,33 +1439,17 @@ function homePage() {
         ></div>
       </section>
 
-      <p
-        class="home-note home-reveal"
-        style="animation-delay:.26s"
-      >
-        Paste the loader into your
-        supported executor to launch
-        Nameless Hub.
+      <p class="home-note home-reveal" style="animation-delay:.26s">
+        Paste the loader into your supported executor to launch Nameless Hub.
       </p>
     </main>
   `;
 
   const script = `
     (function () {
-      const command =
-        ${JSON.stringify(
-          loaderCommand
-        )};
-
-      const button =
-        document.getElementById(
-          "copyLoader"
-        );
-
-      const status =
-        document.getElementById(
-          "loaderStatus"
-        );
+      const command = ${JSON.stringify(loaderCommand)};
+      const button = document.getElementById("copyLoader");
+      const status = document.getElementById("loaderStatus");
 
       async function copyLoader() {
         try {
@@ -2198,95 +1457,42 @@ function homePage() {
             navigator.clipboard &&
             window.isSecureContext
           ) {
-            await navigator.clipboard
-              .writeText(command);
+            await navigator.clipboard.writeText(command);
           } else {
-            const field =
-              document.createElement(
-                "textarea"
-              );
-
+            const field = document.createElement("textarea");
             field.value = command;
-
-            field.setAttribute(
-              "readonly",
-              ""
-            );
-
-            field.style.position =
-              "fixed";
-
-            field.style.left =
-              "-9999px";
-
-            field.style.opacity =
-              "0";
-
-            document.body
-              .appendChild(field);
-
+            field.setAttribute("readonly", "");
+            field.style.position = "fixed";
+            field.style.left = "-9999px";
+            field.style.opacity = "0";
+            document.body.appendChild(field);
             field.select();
-
-            document.execCommand(
-              "copy"
-            );
-
+            document.execCommand("copy");
             field.remove();
           }
 
-          button.classList.add(
-            "is-copied"
-          );
+          button.classList.add("is-copied");
+          button.setAttribute("aria-label", "Copied");
+          button.title = "Copied";
+          status.textContent = "Copied";
+          status.className = "loader-status good";
 
-          button.setAttribute(
-            "aria-label",
-            "Copied"
-          );
-
-          button.title =
-            "Copied";
-
-          status.textContent =
-            "Copied";
-
-          status.className =
-            "loader-status good";
-
-          setTimeout(
-            function () {
-              button.classList.remove(
-                "is-copied"
-              );
-
-              button.setAttribute(
-                "aria-label",
-                "Copy loader"
-              );
-
-              button.title =
-                "Copy loader";
-
-              status.textContent =
-                "";
-
-              status.className =
-                "loader-status";
-            },
-            1500
-          );
+          setTimeout(function () {
+            button.classList.remove("is-copied");
+            button.setAttribute("aria-label", "Copy loader");
+            button.title = "Copy loader";
+            status.textContent = "";
+            status.className = "loader-status";
+          }, 1500);
         } catch {
           status.textContent =
             "Select and copy the loader manually.";
 
-          status.className =
-            "loader-status";
+          status.className = "loader-status";
         }
       }
 
-      button.addEventListener(
-        "click",
-        copyLoader
-      );
+      button.addEventListener("click", copyLoader);
     })();
   `;
 
@@ -2300,17 +1506,14 @@ function homePage() {
 }
 
 function getKeyPage(uid) {
-  const safeUid =
-    normalizeUid(uid);
+  const safeUid = normalizeUid(uid);
 
   const body = safeUid
     ? `
       <main class="page">
         ${brand()}
 
-        <h1>
-          Get Key
-        </h1>
+        <h1>Get Key</h1>
 
         <p class="lead">
           Choose a method to continue.
@@ -2318,39 +1521,56 @@ function getKeyPage(uid) {
 
         <section class="card spot">
           <div class="account">
-            <span>
-              Roblox ID
-            </span>
-
-            <strong>
-              ${safeUid}
-            </strong>
+            <span>Roblox ID</span>
+            <strong>${safeUid}</strong>
           </div>
 
-          <form
-            action="/start"
-            method="get"
-          >
+          <form action="/start" method="get">
             <input
               type="hidden"
               name="uid"
               value="${safeUid}"
             >
 
-            <label
-              class="method spot"
-            >
+            <label class="method spot">
+              <input
+                class="method-input"
+                type="radio"
+                name="method"
+                value="lootlabs"
+                checked
+              >
+
+              <span class="method-icon">
+                <img
+                  src="https://media.licdn.com/dms/image/v2/D4D0BAQFC2ErrY3XtXw/company-logo_200_200/company-logo_200_200/0/1684408131437/lootlabsgg_logo?e=2147483647&amp;v=beta&amp;t=kO3BbH2OnfQqlSm8hd1K1IhD4cJlEQgCWWDjM4DwLpE"
+                  alt="LootLabs"
+                  referrerpolicy="no-referrer"
+                  onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
+                >
+
+                <span class="method-fallback">
+                  LL
+                </span>
+              </span>
+
+              <span class="method-copy">
+                <strong>LootLabs</strong>
+                <span>About 2 minutes</span>
+              </span>
+
+              <span class="method-arrow">›</span>
+            </label>
+
+            <label class="method spot">
               <input
                 class="method-input"
                 type="radio"
                 name="method"
                 value="linkvertise"
-                checked
               >
 
-              <span
-                class="method-icon linkvertise-icon"
-              >
+              <span class="method-icon linkvertise-icon">
                 <img
                   src="https://cdn.jsdelivr.net/npm/simple-icons@16.27.0/icons/linkvertise.svg"
                   alt="Linkvertise"
@@ -2359,36 +1579,20 @@ function getKeyPage(uid) {
                   onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
                 >
 
-                <span
-                  class="method-fallback"
-                >
+                <span class="method-fallback">
                   LV
                 </span>
               </span>
 
-              <span
-                class="method-copy"
-              >
-                <strong>
-                  Linkvertise
-                </strong>
-
-                <span>
-                  Complete the access step
-                </span>
+              <span class="method-copy">
+                <strong>Linkvertise</strong>
+                <span>Complete the access step</span>
               </span>
 
-              <span
-                class="method-arrow"
-              >
-                ›
-              </span>
+              <span class="method-arrow">›</span>
             </label>
 
-            <button
-              class="button"
-              type="submit"
-            >
+            <button class="button" type="submit">
               Continue
             </button>
           </form>
@@ -2399,20 +1603,14 @@ function getKeyPage(uid) {
       <main class="page">
         ${brand()}
 
-        <h1>
-          Open from the script
-        </h1>
+        <h1>Open from the script</h1>
 
         <p class="lead">
-          Use Get Key inside Nameless Hub
-          to create a linked request.
+          Use Get Key inside Nameless Hub to create a linked request.
         </p>
 
         <section class="card spot">
-          <button
-            class="button"
-            disabled
-          >
+          <button class="button" disabled>
             Account not linked
           </button>
         </section>
@@ -2423,23 +1621,37 @@ function getKeyPage(uid) {
     "Get Key · Nameless Hub",
     "Nameless Hub key delivery.",
     body,
-    "",
+    `
+      (function () {
+        const methods = document.querySelectorAll(".method");
+
+        function refresh() {
+          methods.forEach(function (method) {
+            const input = method.querySelector(".method-input");
+            method.classList.toggle("is-active", Boolean(input && input.checked));
+          });
+        }
+
+        methods.forEach(function (method) {
+          const input = method.querySelector(".method-input");
+
+          if (input) {
+            input.addEventListener("change", refresh);
+          }
+        });
+
+        refresh();
+      })();
+    `,
     "/get-key"
   );
 }
 
-function errorPage(
-  title,
-  message,
-  uid
-) {
-  const safeUid =
-    normalizeUid(uid);
+function errorPage(title, message, uid) {
+  const safeUid = normalizeUid(uid);
 
   const href = safeUid
-    ? `/get-key?uid=${encodeURIComponent(
-        safeUid
-      )}`
+    ? `/get-key?uid=${encodeURIComponent(safeUid)}`
     : "/get-key";
 
   return page(
@@ -2449,21 +1661,11 @@ function errorPage(
       <main class="page">
         ${brand()}
 
-        <h1>
-          ${title}
-        </h1>
+        <h1>${title}</h1>
+        <p class="lead">${message}</p>
 
-        <p class="lead">
-          ${message}
-        </p>
-
-        <section
-          class="card spot"
-        >
-          <a
-            class="button"
-            href="${href}"
-          >
+        <section class="card spot">
+          <a class="button" href="${href}">
             Try again
           </a>
         </section>
@@ -2473,24 +1675,17 @@ function errorPage(
 }
 
 function isBrowserNavigation(req) {
-  const accept =
-    String(
-      req.headers.accept || ""
-    ).toLowerCase();
+  const accept = String(
+    req.headers.accept || ""
+  ).toLowerCase();
 
-  const fetchMode =
-    String(
-      req.headers[
-        "sec-fetch-mode"
-      ] || ""
-    ).toLowerCase();
+  const fetchMode = String(
+    req.headers["sec-fetch-mode"] || ""
+  ).toLowerCase();
 
-  const fetchDest =
-    String(
-      req.headers[
-        "sec-fetch-dest"
-      ] || ""
-    ).toLowerCase();
+  const fetchDest = String(
+    req.headers["sec-fetch-dest"] || ""
+  ).toLowerCase();
 
   return (
     fetchMode === "navigate" ||
@@ -2500,49 +1695,36 @@ function isBrowserNavigation(req) {
 }
 
 async function getLoaderSource() {
-  const currentTime =
-    Date.now();
+  const currentTime = Date.now();
 
   if (
     loaderSourceCache &&
-    currentTime -
-      loaderSourceCachedAt <
+    currentTime - loaderSourceCachedAt <
       LOADER_CACHE_MS
   ) {
     return loaderSourceCache;
   }
 
-  const controller =
-    new AbortController();
+  const controller = new AbortController();
 
-  const timeout =
-    setTimeout(
-      () => controller.abort(),
-      12000
-    );
+  const timeout = setTimeout(
+    () => controller.abort(),
+    12000
+  );
 
   try {
-    const response =
-      await fetch(
-        LOADER_SOURCE_URL,
-        {
-          method: "GET",
-
-          headers: {
-            Accept:
-              "text/plain,*/*",
-
-            "User-Agent":
-              "Nameless-Hub-Loader",
-
-            "Cache-Control":
-              "no-cache",
-          },
-
-          signal:
-            controller.signal,
-        }
-      );
+    const response = await fetch(
+      LOADER_SOURCE_URL,
+      {
+        method: "GET",
+        headers: {
+          Accept: "text/plain,*/*",
+          "User-Agent": "Nameless-Hub-Loader",
+          "Cache-Control": "no-cache",
+        },
+        signal: controller.signal,
+      }
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -2550,20 +1732,14 @@ async function getLoaderSource() {
       );
     }
 
-    const source =
-      await response.text();
+    const source = await response.text();
 
     if (!source.trim()) {
-      throw new Error(
-        "Loader source is empty"
-      );
+      throw new Error("Loader source is empty");
     }
 
-    loaderSourceCache =
-      source;
-
-    loaderSourceCachedAt =
-      currentTime;
+    loaderSourceCache = source;
+    loaderSourceCachedAt = currentTime;
 
     return source;
   } finally {
@@ -2572,34 +1748,26 @@ async function getLoaderSource() {
 }
 
 function isOldRenderHost(req) {
-  const host =
-    String(
-      req.hostname ||
-      req.headers.host ||
-      ""
-    )
-      .split(":")[0]
-      .trim()
-      .toLowerCase();
+  const host = String(
+    req.hostname ||
+    req.headers.host ||
+    ""
+  )
+    .split(":")[0]
+    .trim()
+    .toLowerCase();
 
-  return host.endsWith(
-    ".onrender.com"
-  );
+  return host.endsWith(".onrender.com");
 }
 
-function redirectToPublicOrigin(
-  req,
-  res
-) {
+function redirectToPublicOrigin(req, res) {
   let path = String(
     req.originalUrl ||
     req.url ||
     "/"
   );
 
-  if (
-    !path.startsWith("/")
-  ) {
+  if (!path.startsWith("/")) {
     path = "/";
   }
 
@@ -2609,198 +1777,137 @@ function redirectToPublicOrigin(
   );
 }
 
-app.get(
-  "/",
-  (req, res) => {
-    if (
-      isOldRenderHost(req)
-    ) {
-      return redirectToPublicOrigin(
-        req,
-        res
+app.get("/", (req, res) => {
+  if (isOldRenderHost(req)) {
+    return redirectToPublicOrigin(req, res);
+  }
+
+  const linkvertiseHash =
+    normalizeLinkvertiseHash(
+      firstQueryValue(req.query.hash)
+    );
+
+  if (linkvertiseHash) {
+    return res.redirect(
+      302,
+      "/linkvertise/complete?hash=" +
+        encodeURIComponent(linkvertiseHash)
+    );
+  }
+
+  const hasKeyFlowQuery = Boolean(
+    req.query.uid ||
+    req.query.mode ||
+    req.query.direct ||
+    req.query.legacy
+  );
+
+  if (hasKeyFlowQuery) {
+    const originalUrl = String(
+      req.originalUrl ||
+      req.url ||
+      "/"
+    );
+
+    const queryIndex = originalUrl.indexOf("?");
+
+    const getKeyPath =
+      "/get-key" +
+      (
+        queryIndex >= 0
+          ? originalUrl.slice(queryIndex)
+          : ""
       );
-    }
 
-    const linkvertiseHash =
-      normalizeLinkvertiseHash(
-        firstQueryValue(
-          req.query.hash
-        )
-      );
+    return res.redirect(302, getKeyPath);
+  }
 
-    if (linkvertiseHash) {
-      return res.redirect(
-        302,
+  res.setHeader(
+    "Cache-Control",
+    "public, max-age=60"
+  );
 
-        "/linkvertise/complete?hash=" +
-        encodeURIComponent(
-          linkvertiseHash
-        )
-      );
-    }
+  return res
+    .status(200)
+    .type("html")
+    .send(homePage());
+});
 
-    const hasKeyFlowQuery =
-      Boolean(
-        req.query.uid ||
-        req.query.mode ||
-        req.query.direct ||
-        req.query.legacy
-      );
+app.get("/loader", async (req, res) => {
+  if (isOldRenderHost(req)) {
+    return redirectToPublicOrigin(req, res);
+  }
 
-    if (hasKeyFlowQuery) {
-      const originalUrl =
-        String(
-          req.originalUrl ||
-          req.url ||
-          "/"
-        );
+  if (isBrowserNavigation(req)) {
+    return res.redirect(302, PUBLIC_ORIGIN);
+  }
 
-      const queryIndex =
-        originalUrl.indexOf("?");
+  try {
+    const source = await getLoaderSource();
 
-      const getKeyPath =
-        "/get-key" +
-        (
-          queryIndex >= 0
-            ? originalUrl.slice(
-                queryIndex
-              )
-            : ""
-        );
-
-      return res.redirect(
-        302,
-        getKeyPath
-      );
-    }
+    res.setHeader(
+      "Content-Type",
+      "text/plain; charset=utf-8"
+    );
 
     res.setHeader(
       "Cache-Control",
-      "public, max-age=60"
+      "no-store, no-cache, must-revalidate"
+    );
+
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader(
+      "X-Content-Type-Options",
+      "nosniff"
+    );
+
+    return res.status(200).send(source);
+  } catch (error) {
+    console.error("LOADER_ERROR", error);
+
+    res.setHeader(
+      "Content-Type",
+      "text/plain; charset=utf-8"
     );
 
     return res
-      .status(200)
-      .type("html")
-      .send(homePage());
+      .status(503)
+      .send(
+        'error("Nameless Hub loader is temporarily unavailable")'
+      );
   }
-);
+});
 
-app.get(
-  "/loader",
-  async (req, res) => {
-    if (
-      isOldRenderHost(req)
-    ) {
-      return redirectToPublicOrigin(
-        req,
-        res
-      );
-    }
+app.get("/ping", (req, res) => {
+  return res.status(200).json({
+    ok: true,
+    status: "alive",
+    time: new Date().toISOString(),
+  });
+});
 
-    if (
-      isBrowserNavigation(req)
-    ) {
-      return res.redirect(
-        302,
-        PUBLIC_ORIGIN
-      );
-    }
+app.get("/health", (req, res) => {
+  return res.status(200).send("OK");
+});
 
-    try {
-      const source =
-        await getLoaderSource();
+function wantsLegacyKeyFlow(req) {
+  const mode = String(
+    req.query.mode || ""
+  )
+    .trim()
+    .toLowerCase();
 
-      res.setHeader(
-        "Content-Type",
-        "text/plain; charset=utf-8"
-      );
+  const direct = String(
+    req.query.direct || ""
+  )
+    .trim()
+    .toLowerCase();
 
-      res.setHeader(
-        "Cache-Control",
-        "no-store, no-cache, must-revalidate"
-      );
-
-      res.setHeader(
-        "Pragma",
-        "no-cache"
-      );
-
-      res.setHeader(
-        "X-Content-Type-Options",
-        "nosniff"
-      );
-
-      return res
-        .status(200)
-        .send(source);
-    } catch (error) {
-      console.error(
-        "LOADER_ERROR",
-        error
-      );
-
-      res.setHeader(
-        "Content-Type",
-        "text/plain; charset=utf-8"
-      );
-
-      return res
-        .status(503)
-        .send(
-          'error("Nameless Hub loader is temporarily unavailable")'
-        );
-    }
-  }
-);
-
-app.get(
-  "/ping",
-  (req, res) => {
-    return res
-      .status(200)
-      .json({
-        ok: true,
-        status: "alive",
-        time:
-          new Date()
-            .toISOString(),
-      });
-  }
-);
-
-app.get(
-  "/health",
-  (req, res) => {
-    return res
-      .status(200)
-      .send("OK");
-  }
-);
-
-function wantsLegacyKeyFlow(
-  req
-) {
-  const mode =
-    String(
-      req.query.mode || ""
-    )
-      .trim()
-      .toLowerCase();
-
-  const direct =
-    String(
-      req.query.direct || ""
-    )
-      .trim()
-      .toLowerCase();
-
-  const legacy =
-    String(
-      req.query.legacy || ""
-    )
-      .trim()
-      .toLowerCase();
+  const legacy = String(
+    req.query.legacy || ""
+  )
+    .trim()
+    .toLowerCase();
 
   return (
     mode === "legacy" ||
@@ -2816,56 +1923,31 @@ app.get(
   "/get-key",
   strictLimiter,
   (req, res) => {
-    if (
-      isOldRenderHost(req)
-    ) {
-      return redirectToPublicOrigin(
-        req,
-        res
-      );
+    if (isOldRenderHost(req)) {
+      return redirectToPublicOrigin(req, res);
     }
 
-    if (
-      wantsLegacyKeyFlow(req)
-    ) {
-      return startKeyFlow(
-        req,
-        res
-      );
+    if (wantsLegacyKeyFlow(req)) {
+      return startKeyFlow(req, res);
     }
 
-    res.setHeader(
-      "Cache-Control",
-      "no-store"
-    );
+    res.setHeader("Cache-Control", "no-store");
 
     return res
       .type("html")
-      .send(
-        getKeyPage(
-          req.query.uid
-        )
-      );
+      .send(getKeyPage(req.query.uid));
   }
 );
 
-async function startKeyFlow(
-  req,
-  res
-) {
+async function startKeyFlow(req, res) {
   try {
-    const uid =
-      normalizeUid(
-        req.query.uid
-      );
+    const uid = normalizeUid(req.query.uid);
 
-    const method =
-      String(
-        req.query.method ||
-        "linkvertise"
-      )
-        .trim()
-        .toLowerCase();
+    const method = String(
+      req.query.method || "lootlabs"
+    )
+      .trim()
+      .toLowerCase();
 
     if (!uid) {
       return res
@@ -2895,49 +1977,33 @@ async function startKeyFlow(
         );
     }
 
-    const createdAt =
-      now();
+    const createdAt = now();
 
-    const expiresAt =
-      addMinutes(
-        createdAt,
-        SESSION_TTL_MINUTES
-      );
+    const expiresAt = addMinutes(
+      createdAt,
+      SESSION_TTL_MINUTES
+    );
 
-    const sid =
-      crypto.randomUUID();
+    const sid = crypto.randomUUID();
 
     const destinationUrl =
       method === "linkvertise"
         ? LINKVERTISE_URL
         : makeLootlabsUrl(sid);
 
-    const {
-      error,
-    } = await supabase
+    const { error } = await supabase
       .from("key_sessions")
       .insert({
         sid,
         uid,
-
         completed: false,
         claimed: false,
-
-        created_at:
-          createdAt.toISOString(),
-
-        expires_at:
-          expiresAt.toISOString(),
-
-        start_ip:
-          clientIp(req),
-
-        start_user_agent:
-          String(
-            req.headers[
-              "user-agent"
-            ] || ""
-          ).slice(0, 300),
+        created_at: createdAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        start_ip: clientIp(req),
+        start_user_agent: String(
+          req.headers["user-agent"] || ""
+        ).slice(0, 300),
       });
 
     if (error) {
@@ -2958,21 +2024,11 @@ async function startKeyFlow(
         );
     }
 
-    setKeyCookies(
-      res,
-      sid,
-      uid,
-      method
-    );
+    setKeyCookies(res, sid, uid, method);
 
-    return res.redirect(
-      destinationUrl
-    );
+    return res.redirect(destinationUrl);
   } catch (error) {
-    console.error(
-      "GET_KEY_ERROR",
-      error
-    );
+    console.error("GET_KEY_ERROR", error);
 
     return res
       .status(500)
@@ -3010,19 +2066,12 @@ app.get(
   strictLimiter,
   async (req, res) => {
     try {
-      if (
-        isOldRenderHost(req)
-      ) {
-        return redirectToPublicOrigin(
-          req,
-          res
-        );
+      if (isOldRenderHost(req)) {
+        return redirectToPublicOrigin(req, res);
       }
 
       const result =
-        await getSessionByCookies(
-          req
-        );
+        await getSessionByCookies(req);
 
       if (
         !result.sid ||
@@ -3045,13 +2094,10 @@ app.get(
         result.session.display_key &&
         result.session.key_expires_at &&
         new Date(
-          result.session
-            .key_expires_at
+          result.session.key_expires_at
         ) > now()
       ) {
-        return res.redirect(
-          "/complete"
-        );
+        return res.redirect("/complete");
       }
 
       if (
@@ -3071,21 +2117,14 @@ app.get(
           );
       }
 
-      if (
-        result.session.completed
-      ) {
-        return res.redirect(
-          "/complete"
-        );
+      if (result.session.completed) {
+        return res.redirect("/complete");
       }
 
       return res.redirect(
-        result.method ===
-        "linkvertise"
+        result.method === "linkvertise"
           ? LINKVERTISE_URL
-          : makeLootlabsUrl(
-              result.sid
-            )
+          : makeLootlabsUrl(result.sid)
       );
     } catch (error) {
       console.error(
@@ -3111,39 +2150,20 @@ app.get(
   strictLimiter,
   async (req, res) => {
     try {
-      if (
-        isOldRenderHost(req)
-      ) {
-        return redirectToPublicOrigin(
-          req,
-          res
-        );
+      if (isOldRenderHost(req)) {
+        return redirectToPublicOrigin(req, res);
       }
 
-      res.setHeader(
-        "Cache-Control",
-        "no-store"
-      );
+      res.setHeader("Cache-Control", "no-store");
 
       const result =
-        await getSessionByCookies(
-          req
-        );
+        await getSessionByCookies(req);
 
-      const sid =
-        result.sid;
+      const sid = result.sid;
+      const uid = result.uid;
+      const session = result.session;
 
-      const uid =
-        result.uid;
-
-      const session =
-        result.session;
-
-      if (
-        !sid ||
-        !uid ||
-        !session
-      ) {
+      if (!sid || !uid || !session) {
         return res
           .status(400)
           .type("html")
@@ -3159,15 +2179,11 @@ app.get(
         session.completed ||
         session.claimed
       ) {
-        return res.redirect(
-          "/complete"
-        );
+        return res.redirect("/complete");
       }
 
       if (
-        new Date(
-          session.expires_at
-        ) <= now()
+        new Date(session.expires_at) <= now()
       ) {
         return res
           .status(410)
@@ -3181,12 +2197,9 @@ app.get(
           );
       }
 
-      const hash =
-        normalizeLinkvertiseHash(
-          firstQueryValue(
-            req.query.hash
-          )
-        );
+      const hash = normalizeLinkvertiseHash(
+        firstQueryValue(req.query.hash)
+      );
 
       if (!hash) {
         return res
@@ -3202,9 +2215,7 @@ app.get(
       }
 
       const verification =
-        await verifyLinkvertiseHash(
-          hash
-        );
+        await verifyLinkvertiseHash(hash);
 
       if (!verification.ok) {
         if (
@@ -3239,25 +2250,19 @@ app.get(
           );
       }
 
-      const completedAt =
-        now();
+      const completedAt = now();
 
-      const {
-        error: updateError,
-      } = await supabase
-        .from("key_sessions")
-        .update({
-          completed: true,
-
-          completed_at:
-            completedAt.toISOString(),
-        })
-        .eq("sid", sid)
-        .eq("uid", uid)
-        .eq(
-          "completed",
-          false
-        );
+      const { error: updateError } =
+        await supabase
+          .from("key_sessions")
+          .update({
+            completed: true,
+            completed_at:
+              completedAt.toISOString(),
+          })
+          .eq("sid", sid)
+          .eq("uid", uid)
+          .eq("completed", false);
 
       if (updateError) {
         console.error(
@@ -3277,46 +2282,29 @@ app.get(
           );
       }
 
-      const hashSha256 =
-        sha256(hash);
-
       const verificationId =
-        "linkvertise:" +
-        hashSha256;
+        "linkvertise:" + sha256(hash);
 
-      const {
-        error: logError,
-      } = await supabase
-        .from("postbacks")
-        .insert({
-          unique_id:
-            verificationId,
-
-          sid,
-          uid,
-
-          lootlabs_ip: "",
-
-          request_ip:
-            clientIp(req),
-
-          query: {
-            provider:
-              "linkvertise",
-
-            hash_sha256:
-              hashSha256,
-          },
-
-          created_at:
-            completedAt
-              .toISOString(),
-        });
+      const { error: logError } =
+        await supabase
+          .from("postbacks")
+          .insert({
+            unique_id: verificationId,
+            sid,
+            uid,
+            lootlabs_ip: "",
+            request_ip: clientIp(req),
+            query: {
+              provider: "linkvertise",
+              hash_sha256: sha256(hash),
+            },
+            created_at:
+              completedAt.toISOString(),
+          });
 
       if (
         logError &&
-        logError.code !==
-          "23505"
+        logError.code !== "23505"
       ) {
         console.error(
           "LINKVERTISE_LOG_ERROR",
@@ -3324,9 +2312,7 @@ app.get(
         );
       }
 
-      return res.redirect(
-        "/complete"
-      );
+      return res.redirect("/complete");
     } catch (error) {
       console.error(
         "LINKVERTISE_COMPLETE_ERROR",
@@ -3347,764 +2333,509 @@ app.get(
   }
 );
 
-app.get(
-  "/complete",
-  (req, res) => {
-    if (
-      isOldRenderHost(req)
-    ) {
-      return redirectToPublicOrigin(
-        req,
-        res
-      );
-    }
-
-    const linkvertiseHash =
-      normalizeLinkvertiseHash(
-        firstQueryValue(
-          req.query.hash
-        )
-      );
-
-    if (linkvertiseHash) {
-      return res.redirect(
-        302,
-
-        "/linkvertise/complete?hash=" +
-        encodeURIComponent(
-          linkvertiseHash
-        )
-      );
-    }
-
-    const cookies =
-      parseCookies(req);
-
-    const uid =
-      normalizeUid(
-        cookies.ks_uid
-      ) || "";
-
-    const fallbackSeconds =
-      Math.max(
-        1,
-
-        Math.round(
-          KEY_TTL_HOURS *
-          3600
-        )
-      );
-
-    const content = `
-      <main class="page">
-        ${brand()}
-
-        <h1 id="title">
-          Checking key
-        </h1>
-
-        <p
-          id="lead"
-          class="lead"
-        >
-          Confirming your
-          Linkvertise completion.
-        </p>
-
-        <section
-          id="loading"
-          class="card spot"
-        >
-          <div class="loader-wrap">
-            <div>
-              <div
-                class="loader"
-              ></div>
-
-              <strong>
-                Checking completion
-              </strong>
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="result"
-          class="card spot hidden"
-        >
-          <div class="label">
-            Key
-          </div>
-
-          <div
-            id="key"
-            class="key"
-          ></div>
-
-          <div class="timer-row">
-            <span class="label">
-              Expires in
-            </span>
-
-            <strong
-              id="timer"
-              class="timer"
-            >
-              --:--:--
-            </strong>
-          </div>
-
-          <div class="progress">
-            <span
-              id="bar"
-            ></span>
-          </div>
-
-          <button
-            id="copy"
-            class="button"
-            type="button"
-          >
-            Copy key
-          </button>
-
-          <div
-            id="status"
-            class="status"
-          ></div>
-        </section>
-
-        <section
-          id="error"
-          class="card spot hidden"
-        >
-          <div class="loader-wrap">
-            <div>
-              <strong>
-                Key not ready
-              </strong>
-
-              <p
-                id="errorText"
-              ></p>
-            </div>
-          </div>
-
-          <a
-            id="retry"
-            class="button"
-            href="/continue"
-          >
-            Try again
-          </a>
-        </section>
-      </main>
-    `;
-
-    const script = `
-      const loading =
-        document.getElementById(
-          "loading"
-        );
-
-      const result =
-        document.getElementById(
-          "result"
-        );
-
-      const errorBox =
-        document.getElementById(
-          "error"
-        );
-
-      const title =
-        document.getElementById(
-          "title"
-        );
-
-      const lead =
-        document.getElementById(
-          "lead"
-        );
-
-      const keyBox =
-        document.getElementById(
-          "key"
-        );
-
-      const timer =
-        document.getElementById(
-          "timer"
-        );
-
-      const bar =
-        document.getElementById(
-          "bar"
-        );
-
-      const copy =
-        document.getElementById(
-          "copy"
-        );
-
-      const status =
-        document.getElementById(
-          "status"
-        );
-
-      const errorText =
-        document.getElementById(
-          "errorText"
-        );
-
-      const retry =
-        document.getElementById(
-          "retry"
-        );
-
-      const uid =
-        ${JSON.stringify(uid)};
-
-      const fallback =
-        ${fallbackSeconds};
-
-      let currentKey = "";
-      let expiresAt = 0;
-      let total = fallback;
-      let attempts = 0;
-      let timerHandle = null;
-
-      function format(value) {
-        value = Math.max(
-          0,
-          Math.floor(value)
-        );
-
-        const hours =
-          Math.floor(
-            value / 3600
-          );
-
-        const minutes =
-          Math.floor(
-            (
-              value %
-              3600
-            ) / 60
-          );
-
-        const seconds =
-          value % 60;
-
-        return [
-          hours,
-          minutes,
-          seconds
-        ]
-          .map(
-            function (part) {
-              return String(part)
-                .padStart(
-                  2,
-                  "0"
-                );
-            }
-          )
-          .join(":");
-      }
-
-      function setStatus(
-        text,
-        state
-      ) {
-        status.textContent =
-          text || "";
-
-        status.className =
-          "status" +
-          (
-            state
-              ? " " + state
-              : ""
-          );
-      }
-
-      function celebrate() {
-        const colors = [
-          "#ffffff",
-          "#f7d154",
-          "#7dd3fc",
-          "#c4b5fd",
-          "#f9a8d4"
-        ];
-
-        for (
-          let index = 0;
-          index < 28;
-          index += 1
-        ) {
-          const piece =
-            document.createElement(
-              "span"
-            );
-
-          piece.className =
-            "confetti-piece";
-
-          piece.style.left =
-            Math.random() *
-            100 +
-            "vw";
-
-          piece.style.background =
-            colors[
-              index %
-              colors.length
-            ];
-
-          piece.style.borderRadius =
-            Math.random() > .55
-              ? "99px"
-              : "2px";
-
-          piece.style.setProperty(
-            "--drift",
-
-            (
-              Math.random() *
-              150 -
-              75
-            ) + "px"
-          );
-
-          piece.style.setProperty(
-            "--rotation",
-
-            (
-              Math.random() *
-              720 -
-              360
-            ) + "deg"
-          );
-
-          piece.style.setProperty(
-            "--duration",
-
-            (
-              1.25 +
-              Math.random() *
-              .65
-            ) + "s"
-          );
-
-          piece.style.animationDelay =
-            Math.random() *
-            .18 +
-            "s";
-
-          document.body
-            .appendChild(
-              piece
-            );
-
-          piece.addEventListener(
-            "animationend",
-
-            function () {
-              piece.remove();
-            }
-          );
-        }
-      }
-
-      function celebrateOnce() {
-        const token =
-          "nh-confetti:" +
-          currentKey;
-
-        let shown = false;
-
-        try {
-          shown =
-            sessionStorage
-              .getItem(token) ===
-            "1";
-
-          if (!shown) {
-            sessionStorage
-              .setItem(
-                token,
-                "1"
-              );
-          }
-        } catch {
-          shown = false;
-        }
-
-        if (!shown) {
-          celebrate();
-        }
-      }
-
-      function fail(
-        message,
-        canContinue
-      ) {
-        loading.classList.add(
-          "hidden"
-        );
-
-        result.classList.add(
-          "hidden"
-        );
-
-        errorBox.classList.remove(
-          "hidden"
-        );
-
-        title.textContent =
-          "Key unavailable";
-
-        lead.textContent =
-          "Finish the checkpoint or create a new request.";
-
-        errorText.textContent =
-          message ||
-          "Unable to deliver the key.";
-
-        retry.href =
-          canContinue
-            ? "/continue"
-            : uid
-              ? "/get-key?uid=" +
-                encodeURIComponent(
-                  uid
-                )
-              : "/get-key";
-
-        retry.textContent =
-          canContinue
-            ? "Continue"
-            : "New request";
-      }
-
-      function tick() {
-        const left =
-          Math.max(
-            0,
-
-            Math.ceil(
-              (
-                expiresAt -
-                Date.now()
-              ) / 1000
-            )
-          );
-
-        timer.textContent =
-          format(left);
-
-        bar.style.width =
-          Math.max(
-            0,
-
-            Math.min(
-              100,
-
-              (
-                left /
-                total
-              ) *
-              100
-            )
-          ) + "%";
-
-        if (left <= 0) {
-          clearInterval(
-            timerHandle
-          );
-
-          copy.disabled = true;
-
-          copy.textContent =
-            "Key expired";
-
-          setStatus(
-            "Create a new key.",
-            "bad"
-          );
-        }
-      }
-
-      function ready(data) {
-        currentKey =
-          String(
-            data.key || ""
-          );
-
-        expiresAt =
-          Date.parse(
-            data.expiresAt ||
-            ""
-          );
-
-        if (
-          !currentKey ||
-          !Number.isFinite(
-            expiresAt
-          )
-        ) {
-          fail(
-            "The server returned an incomplete key.",
-            false
-          );
-
-          return;
-        }
-
-        const hours =
-          Number(
-            data.expiresInHours
-          );
-
-        total =
-          Number.isFinite(
-            hours
-          ) &&
-          hours > 0
-
-            ? Math.max(
-                1,
-
-                Math.round(
-                  hours *
-                  3600
-                )
-              )
-
-            : Math.max(
-                1,
-
-                Math.ceil(
-                  (
-                    expiresAt -
-                    Date.now()
-                  ) / 1000
-                )
-              );
-
-        keyBox.textContent =
-          currentKey;
-
-        loading.classList.add(
-          "hidden"
-        );
-
-        errorBox.classList.add(
-          "hidden"
-        );
-
-        result.classList.remove(
-          "hidden"
-        );
-
-        title.textContent =
-          "Key ready";
-
-        lead.textContent =
-          "Copy it and paste it into Nameless Hub.";
-
-        setStatus(
-          "",
-          ""
-        );
-
-        celebrateOnce();
-        tick();
-
-        timerHandle =
-          setInterval(
-            tick,
-            1000
-          );
-      }
-
-      async function copyKey() {
-        if (!currentKey) {
-          return;
-        }
-
-        try {
-          if (
-            navigator.clipboard &&
-            window.isSecureContext
-          ) {
-            await navigator
-              .clipboard
-              .writeText(
-                currentKey
-              );
-          } else {
-            const field =
-              document.createElement(
-                "textarea"
-              );
-
-            field.value =
-              currentKey;
-
-            field.style.position =
-              "fixed";
-
-            field.style.opacity =
-              "0";
-
-            document.body
-              .appendChild(
-                field
-              );
-
-            field.select();
-
-            document.execCommand(
-              "copy"
-            );
-
-            field.remove();
-          }
-
-          copy.textContent =
-            "Copied";
-
-          setStatus(
-            "Copied",
-            "good"
-          );
-
-          setTimeout(
-            function () {
-              if (!copy.disabled) {
-                copy.textContent =
-                  "Copy key";
-
-                setStatus(
-                  "",
-                  ""
-                );
-              }
-            },
-            1400
-          );
-        } catch {
-          setStatus(
-            "Select and copy the key manually.",
-            "bad"
-          );
-        }
-      }
-
-      async function claim() {
-        attempts += 1;
-
-        try {
-          const response =
-            await fetch(
-              "/site-claim",
-              {
-                credentials:
-                  "include",
-
-                cache:
-                  "no-store"
-              }
-            );
-
-          const data =
-            await response.json();
-
-          if (
-            data.ok &&
-            data.key
-          ) {
-            ready(data);
-            return;
-          }
-
-          if (
-            data.pending &&
-            attempts < 16
-          ) {
-            setTimeout(
-              claim,
-              1500
-            );
-
-            return;
-          }
-
-          if (data.pending) {
-            fail(
-              "Confirmation is taking longer than expected.",
-              true
-            );
-
-            return;
-          }
-
-          fail(
-            data.message ||
-            "Unable to deliver the key.",
-            false
-          );
-        } catch {
-          if (
-            attempts < 4
-          ) {
-            setTimeout(
-              claim,
-              1800
-            );
-
-            return;
-          }
-
-          fail(
-            "The server could not be reached.",
-            false
-          );
-        }
-      }
-
-      copy.addEventListener(
-        "click",
-        copyKey
-      );
-
-      setTimeout(
-        claim,
-        450
-      );
-    `;
-
-    res.setHeader(
-      "Cache-Control",
-      "no-store"
+app.get("/complete", (req, res) => {
+  if (isOldRenderHost(req)) {
+    return redirectToPublicOrigin(req, res);
+  }
+
+  const linkvertiseHash =
+    normalizeLinkvertiseHash(
+      firstQueryValue(req.query.hash)
     );
 
-    return res
-      .type("html")
-      .send(
-        page(
-          "Your Key · Nameless Hub",
+  if (linkvertiseHash) {
+    return res.redirect(
+      302,
+      "/linkvertise/complete?hash=" +
+        encodeURIComponent(linkvertiseHash)
+    );
+  }
 
-          "Your generated Nameless Hub access key.",
+  const cookies = parseCookies(req);
 
-          content,
-          script
+  const uid =
+    normalizeUid(cookies.ks_uid) || "";
+
+  const fallbackSeconds = Math.max(
+    1,
+    Math.round(KEY_TTL_HOURS * 3600)
+  );
+
+  const content = `
+    <main class="page">
+      ${brand()}
+
+      <h1 id="title">Checking key</h1>
+
+      <p id="lead" class="lead">
+        Confirming your checkpoint completion.
+      </p>
+
+      <section id="loading" class="card spot">
+        <div class="loader-wrap">
+          <div>
+            <div class="loader"></div>
+            <strong>Checking completion</strong>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="result"
+        class="card spot hidden"
+      >
+        <div class="label">Key</div>
+
+        <div id="key" class="key"></div>
+
+        <div class="timer-row">
+          <span class="label">Expires in</span>
+
+          <strong id="timer" class="timer">
+            --:--:--
+          </strong>
+        </div>
+
+        <div class="progress">
+          <span id="bar"></span>
+        </div>
+
+        <button
+          id="copy"
+          class="button"
+          type="button"
+        >
+          Copy key
+        </button>
+
+        <div
+          id="status"
+          class="status"
+        ></div>
+      </section>
+
+      <section
+        id="error"
+        class="card spot hidden"
+      >
+        <div class="loader-wrap">
+          <div>
+            <strong>Key not ready</strong>
+            <p id="errorText"></p>
+          </div>
+        </div>
+
+        <a
+          id="retry"
+          class="button"
+          href="/continue"
+        >
+          Try again
+        </a>
+      </section>
+    </main>
+  `;
+
+  const script = `
+    const loading =
+      document.getElementById("loading");
+
+    const result =
+      document.getElementById("result");
+
+    const errorBox =
+      document.getElementById("error");
+
+    const title =
+      document.getElementById("title");
+
+    const lead =
+      document.getElementById("lead");
+
+    const keyBox =
+      document.getElementById("key");
+
+    const timer =
+      document.getElementById("timer");
+
+    const bar =
+      document.getElementById("bar");
+
+    const copy =
+      document.getElementById("copy");
+
+    const status =
+      document.getElementById("status");
+
+    const errorText =
+      document.getElementById("errorText");
+
+    const retry =
+      document.getElementById("retry");
+
+    const uid = ${JSON.stringify(uid)};
+    const fallback = ${fallbackSeconds};
+
+    let currentKey = "";
+    let expiresAt = 0;
+    let total = fallback;
+    let attempts = 0;
+    let timerHandle = null;
+
+    function format(value) {
+      value = Math.max(
+        0,
+        Math.floor(value)
+      );
+
+      const hours =
+        Math.floor(value / 3600);
+
+      const minutes =
+        Math.floor((value % 3600) / 60);
+
+      const seconds =
+        value % 60;
+
+      return [
+        hours,
+        minutes,
+        seconds
+      ]
+        .map(function (part) {
+          return String(part).padStart(2, "0");
+        })
+        .join(":");
+    }
+
+    function setStatus(text, state) {
+      status.textContent = text || "";
+
+      status.className =
+        "status" +
+        (state ? " " + state : "");
+    }
+
+    function celebrate() {
+      const colors = [
+        "#ffffff",
+        "#f7d154",
+        "#7dd3fc",
+        "#c4b5fd",
+        "#f9a8d4"
+      ];
+
+      for (
+        let index = 0;
+        index < 28;
+        index += 1
+      ) {
+        const piece =
+          document.createElement("span");
+
+        piece.className =
+          "confetti-piece";
+
+        piece.style.left =
+          Math.random() * 100 + "vw";
+
+        piece.style.background =
+          colors[index % colors.length];
+
+        piece.style.borderRadius =
+          Math.random() > .55
+            ? "99px"
+            : "2px";
+
+        piece.style.setProperty(
+          "--drift",
+          (Math.random() * 150 - 75) + "px"
+        );
+
+        piece.style.setProperty(
+          "--rotation",
+          (Math.random() * 720 - 360) + "deg"
+        );
+
+        piece.style.setProperty(
+          "--duration",
+          (1.25 + Math.random() * .65) + "s"
+        );
+
+        piece.style.animationDelay =
+          Math.random() * .18 + "s";
+
+        document.body.appendChild(piece);
+
+        piece.addEventListener(
+          "animationend",
+          function () {
+            piece.remove();
+          }
+        );
+      }
+    }
+
+    function celebrateOnce() {
+      const token =
+        "nh-confetti:" + currentKey;
+
+      let shown = false;
+
+      try {
+        shown =
+          sessionStorage.getItem(token) === "1";
+
+        if (!shown) {
+          sessionStorage.setItem(token, "1");
+        }
+      } catch {
+        shown = false;
+      }
+
+      if (!shown) {
+        celebrate();
+      }
+    }
+
+    function fail(message, canContinue) {
+      loading.classList.add("hidden");
+      result.classList.add("hidden");
+      errorBox.classList.remove("hidden");
+
+      title.textContent =
+        "Key unavailable";
+
+      lead.textContent =
+        "Finish the checkpoint or create a new request.";
+
+      errorText.textContent =
+        message ||
+        "Unable to deliver the key.";
+
+      retry.href = canContinue
+        ? "/continue"
+        : uid
+          ? "/get-key?uid=" +
+            encodeURIComponent(uid)
+          : "/get-key";
+
+      retry.textContent = canContinue
+        ? "Continue"
+        : "New request";
+    }
+
+    function tick() {
+      const left = Math.max(
+        0,
+        Math.ceil(
+          (expiresAt - Date.now()) / 1000
         )
       );
-  }
-);
+
+      timer.textContent = format(left);
+
+      bar.style.width =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            (left / total) * 100
+          )
+        ) + "%";
+
+      if (left <= 0) {
+        clearInterval(timerHandle);
+
+        copy.disabled = true;
+        copy.textContent = "Key expired";
+
+        setStatus(
+          "Create a new key.",
+          "bad"
+        );
+      }
+    }
+
+    function ready(data) {
+      currentKey = String(data.key || "");
+
+      expiresAt = Date.parse(
+        data.expiresAt || ""
+      );
+
+      if (
+        !currentKey ||
+        !Number.isFinite(expiresAt)
+      ) {
+        fail(
+          "The server returned an incomplete key.",
+          false
+        );
+
+        return;
+      }
+
+      const hours =
+        Number(data.expiresInHours);
+
+      total =
+        Number.isFinite(hours) &&
+        hours > 0
+          ? Math.max(
+              1,
+              Math.round(hours * 3600)
+            )
+          : Math.max(
+              1,
+              Math.ceil(
+                (expiresAt - Date.now()) / 1000
+              )
+            );
+
+      keyBox.textContent = currentKey;
+
+      loading.classList.add("hidden");
+      errorBox.classList.add("hidden");
+      result.classList.remove("hidden");
+
+      title.textContent = "Key ready";
+
+      lead.textContent =
+        "Copy it and paste it into Nameless Hub.";
+
+      setStatus("", "");
+      celebrateOnce();
+      tick();
+
+      timerHandle =
+        setInterval(tick, 1000);
+    }
+
+    async function copyKey() {
+      if (!currentKey) {
+        return;
+      }
+
+      try {
+        if (
+          navigator.clipboard &&
+          window.isSecureContext
+        ) {
+          await navigator.clipboard.writeText(
+            currentKey
+          );
+        } else {
+          const field =
+            document.createElement("textarea");
+
+          field.value = currentKey;
+          field.style.position = "fixed";
+          field.style.opacity = "0";
+
+          document.body.appendChild(field);
+
+          field.select();
+          document.execCommand("copy");
+          field.remove();
+        }
+
+        copy.textContent = "Copied";
+        setStatus("Copied", "good");
+
+        setTimeout(function () {
+          if (!copy.disabled) {
+            copy.textContent = "Copy key";
+            setStatus("", "");
+          }
+        }, 1400);
+      } catch {
+        setStatus(
+          "Select and copy the key manually.",
+          "bad"
+        );
+      }
+    }
+
+    async function claim() {
+      attempts += 1;
+
+      try {
+        const response = await fetch(
+          "/site-claim",
+          {
+            credentials: "include",
+            cache: "no-store"
+          }
+        );
+
+        const data =
+          await response.json();
+
+        if (data.ok && data.key) {
+          ready(data);
+          return;
+        }
+
+        if (
+          data.pending &&
+          attempts < 16
+        ) {
+          setTimeout(claim, 1500);
+          return;
+        }
+
+        if (data.pending) {
+          fail(
+            "Confirmation is taking longer than expected.",
+            true
+          );
+
+          return;
+        }
+
+        fail(
+          data.message ||
+          "Unable to deliver the key.",
+          false
+        );
+      } catch {
+        if (attempts < 4) {
+          setTimeout(claim, 1800);
+          return;
+        }
+
+        fail(
+          "The server could not be reached.",
+          false
+        );
+      }
+    }
+
+    copy.addEventListener(
+      "click",
+      copyKey
+    );
+
+    setTimeout(claim, 450);
+  `;
+
+  res.setHeader(
+    "Cache-Control",
+    "no-store"
+  );
+
+  return res
+    .type("html")
+    .send(
+      page(
+        "Your Key · Nameless Hub",
+        "Your generated Nameless Hub access key.",
+        content,
+        script
+      )
+    );
+});
 
 app.get(
   "/site-claim",
@@ -4117,27 +2848,15 @@ app.get(
       );
 
       const result =
-        await getSessionByCookies(
-          req
-        );
+        await getSessionByCookies(req);
 
-      const sid =
-        result.sid;
+      const sid = result.sid;
+      const uid = result.uid;
+      const session = result.session;
 
-      const uid =
-        result.uid;
-
-      const session =
-        result.session;
-
-      if (
-        !sid ||
-        !uid ||
-        !session
-      ) {
+      if (!sid || !uid || !session) {
         return res.json({
           ok: false,
-
           message:
             "Open Get Key from Roblox first.",
         });
@@ -4148,9 +2867,7 @@ app.get(
         session.display_key
       ) {
         const keyExpiresAt =
-          new Date(
-            session.key_expires_at
-          );
+          new Date(session.key_expires_at);
 
         if (
           !session.key_expires_at ||
@@ -4158,7 +2875,6 @@ app.get(
         ) {
           return res.json({
             ok: false,
-
             message:
               "Key expired. Create a new request.",
           });
@@ -4166,16 +2882,11 @@ app.get(
 
         return res.json({
           ok: true,
-
-          key:
-            session.display_key,
-
+          key: session.display_key,
           issuedAt:
             session.key_created_at,
-
           expiresAt:
             session.key_expires_at,
-
           expiresInHours:
             KEY_TTL_HOURS,
         });
@@ -4187,74 +2898,53 @@ app.get(
       ) {
         return res.json({
           ok: false,
-
           message:
             "Key already claimed. Create a new request.",
         });
       }
 
       if (
-        new Date(
-          session.expires_at
-        ) <= now()
+        new Date(session.expires_at) <=
+        now()
       ) {
         return res.json({
           ok: false,
-
           message:
             "Session expired. Create a new request.",
         });
       }
 
-      if (
-        !session.completed
-      ) {
+      if (!session.completed) {
         return res.json({
           ok: false,
           pending: true,
-
           message:
             "Waiting for checkpoint confirmation.",
         });
       }
 
-      const key =
-        makeKey();
+      const key = makeKey();
+      const keyHash = hashKey(key);
+      const keyCreatedAt = now();
 
-      const keyHash =
-        hashKey(key);
-
-      const keyCreatedAt =
-        now();
-
-      const keyExpiresAt =
-        addHours(
-          keyCreatedAt,
-          KEY_TTL_HOURS
-        );
+      const keyExpiresAt = addHours(
+        keyCreatedAt,
+        KEY_TTL_HOURS
+      );
 
       const {
-        error:
-          keyInsertError,
+        error: keyInsertError,
       } = await supabase
         .from("keys")
         .insert({
-          key_hash:
-            keyHash,
-
+          key_hash: keyHash,
           uid,
           sid,
-
           active: true,
-
           created_at:
-            keyCreatedAt
-              .toISOString(),
-
+            keyCreatedAt.toISOString(),
           expires_at:
-            keyExpiresAt
-              .toISOString(),
-
+            keyExpiresAt.toISOString(),
           used_count: 0,
         });
 
@@ -4272,30 +2962,19 @@ app.get(
       }
 
       const {
-        error:
-          updateError,
+        error: updateError,
       } = await supabase
         .from("key_sessions")
         .update({
           claimed: true,
-
           claimed_at:
-            keyCreatedAt
-              .toISOString(),
-
-          key_hash:
-            keyHash,
-
+            keyCreatedAt.toISOString(),
+          key_hash: keyHash,
           key_created_at:
-            keyCreatedAt
-              .toISOString(),
-
+            keyCreatedAt.toISOString(),
           key_expires_at:
-            keyExpiresAt
-              .toISOString(),
-
-          display_key:
-            key,
+            keyExpiresAt.toISOString(),
+          display_key: key,
         })
         .eq("sid", sid)
         .eq("uid", uid);
@@ -4316,17 +2995,12 @@ app.get(
       return res.json({
         ok: true,
         key,
-
         issuedAt:
-          keyCreatedAt
-            .toISOString(),
-
+          keyCreatedAt.toISOString(),
         expiresInHours:
           KEY_TTL_HOURS,
-
         expiresAt:
-          keyExpiresAt
-            .toISOString(),
+          keyExpiresAt.toISOString(),
       });
     } catch (error) {
       console.error(
@@ -4362,11 +3036,9 @@ app.get(
         firstQueryValue(
           req.query.click_id
         ) ||
-
         firstQueryValue(
           req.query.puid
         ) ||
-
         firstQueryValue(
           req.query.sid
         );
@@ -4375,30 +3047,22 @@ app.get(
         firstQueryValue(
           req.query.unique_id
         ) ||
-
         firstQueryValue(
           req.query.uniqueid
         ) ||
-
         "";
 
       const rawIp =
-        firstQueryValue(
-          req.query.ip
-        ) || "";
+        firstQueryValue(req.query.ip) ||
+        "";
 
-      const sid =
-        normalizeSid(rawSid);
+      const sid = normalizeSid(rawSid);
 
       const uniqueId =
-        String(
-          rawUniqueId
-        ).trim();
+        String(rawUniqueId).trim();
 
       const lootlabsIp =
-        String(
-          rawIp
-        ).trim();
+        String(rawIp).trim();
 
       if (!sid) {
         return jsonError(
@@ -4421,15 +3085,11 @@ app.get(
 
       const {
         data: duplicate,
-        error:
-          duplicateError,
+        error: duplicateError,
       } = await supabase
         .from("postbacks")
         .select("id")
-        .eq(
-          "unique_id",
-          uniqueId
-        )
+        .eq("unique_id", uniqueId)
         .maybeSingle();
 
       if (duplicateError) {
@@ -4454,8 +3114,7 @@ app.get(
 
       const {
         data: session,
-        error:
-          sessionError,
+        error: sessionError,
       } = await supabase
         .from("key_sessions")
         .select("*")
@@ -4484,9 +3143,8 @@ app.get(
       }
 
       if (
-        new Date(
-          session.expires_at
-        ) <= now()
+        new Date(session.expires_at) <=
+        now()
       ) {
         return jsonError(
           res,
@@ -4495,40 +3153,24 @@ app.get(
         );
       }
 
-      const createdAt =
-        now();
+      const createdAt = now();
 
       const {
-        error:
-          postbackInsertError,
+        error: postbackInsertError,
       } = await supabase
         .from("postbacks")
         .insert({
-          unique_id:
-            uniqueId,
-
+          unique_id: uniqueId,
           sid,
-
-          uid:
-            session.uid,
-
-          lootlabs_ip:
-            lootlabsIp,
-
-          request_ip:
-            clientIp(req),
-
-          query:
-            req.query,
-
+          uid: session.uid,
+          lootlabs_ip: lootlabsIp,
+          request_ip: clientIp(req),
+          query: req.query,
           created_at:
-            createdAt
-              .toISOString(),
+            createdAt.toISOString(),
         });
 
-      if (
-        postbackInsertError
-      ) {
+      if (postbackInsertError) {
         if (
           postbackInsertError.code ===
           "23505"
@@ -4552,20 +3194,14 @@ app.get(
       }
 
       const {
-        error:
-          updateError,
+        error: updateError,
       } = await supabase
         .from("key_sessions")
         .update({
           completed: true,
-
           completed_at:
-            createdAt
-              .toISOString(),
-
-          lootlabs_ip:
-            lootlabsIp,
-
+            createdAt.toISOString(),
+          lootlabs_ip: lootlabsIp,
           lootlabs_unique_id:
             uniqueId,
         })
@@ -4608,19 +3244,12 @@ app.get(
   async (req, res) => {
     try {
       const uid =
-        normalizeUid(
-          req.query.uid
-        );
+        normalizeUid(req.query.uid);
 
       const key =
-        normalizeKey(
-          req.query.key
-        );
+        normalizeKey(req.query.key);
 
-      if (
-        !uid ||
-        !key
-      ) {
+      if (!uid || !key) {
         return jsonError(
           res,
           400,
@@ -4628,8 +3257,7 @@ app.get(
         );
       }
 
-      const keyHash =
-        hashKey(key);
+      const keyHash = hashKey(key);
 
       const {
         data: keyDoc,
@@ -4637,10 +3265,7 @@ app.get(
       } = await supabase
         .from("keys")
         .select("*")
-        .eq(
-          "key_hash",
-          keyHash
-        )
+        .eq("key_hash", keyHash)
         .maybeSingle();
 
       if (error) {
@@ -4662,39 +3287,27 @@ app.get(
       ) {
         return res.json({
           ok: false,
-          message:
-            "Invalid key",
+          message: "Invalid key",
         });
       }
 
-      if (
-        keyDoc.uid !== uid
-      ) {
+      if (keyDoc.uid !== uid) {
         return res.json({
           ok: false,
-
           message:
             "This key is linked to another Roblox account",
         });
       }
 
-      const currentTime =
-        now();
+      const currentTime = now();
 
       const expiresAt =
-        new Date(
-          keyDoc.expires_at
-        );
+        new Date(keyDoc.expires_at);
 
-      if (
-        expiresAt <=
-        currentTime
-      ) {
+      if (expiresAt <= currentTime) {
         return res.json({
           ok: false,
-
-          message:
-            "Key expired",
+          message: "Key expired",
         });
       }
 
@@ -4703,43 +3316,28 @@ app.get(
         .update({
           used_count:
             Number(
-              keyDoc.used_count ||
-              0
+              keyDoc.used_count || 0
             ) + 1,
-
           last_used_at:
-            currentTime
-              .toISOString(),
-
-          last_ip:
-            clientIp(req),
+            currentTime.toISOString(),
+          last_ip: clientIp(req),
         })
-        .eq(
-          "key_hash",
-          keyHash
-        );
+        .eq("key_hash", keyHash);
 
       return res.json({
         ok: true,
-
-        message:
-          "Valid key",
-
+        message: "Valid key",
         expiresAt:
-          expiresAt
-            .toISOString(),
-
-        secondsLeft:
-          Math.max(
-            0,
-
-            Math.floor(
-              (
-                expiresAt.getTime() -
-                currentTime.getTime()
-              ) / 1000
-            )
-          ),
+          expiresAt.toISOString(),
+        secondsLeft: Math.max(
+          0,
+          Math.floor(
+            (
+              expiresAt.getTime() -
+              currentTime.getTime()
+            ) / 1000
+          )
+        ),
       });
     } catch (error) {
       console.error(
@@ -4761,47 +3359,28 @@ app.get(
   async (req, res) => {
     try {
       const result =
-        await getSessionByCookies(
-          req
-        );
+        await getSessionByCookies(req);
 
-      if (
-        !result.sid ||
-        !result.uid
-      ) {
+      if (!result.sid || !result.uid) {
         return res.json({
           ok: false,
-
-          message:
-            "No session cookies",
-
+          message: "No session cookies",
           rawCookieHeader:
-            req.headers.cookie ||
-            null,
+            req.headers.cookie || null,
         });
       }
 
       return res.json({
         ok: true,
-
-        cookieSid:
-          result.sid,
-
-        cookieUid:
-          result.uid,
-
-        session:
-          result.session,
+        cookieSid: result.sid,
+        cookieUid: result.uid,
+        session: result.session,
       });
     } catch (error) {
       return res.json({
         ok: false,
-
-        message:
-          "Server error",
-
-        error:
-          String(error),
+        message: "Server error",
+        error: String(error),
       });
     }
   }
@@ -4813,8 +3392,7 @@ app.get(
     try {
       if (
         !ADMIN_SECRET ||
-        req.query.secret !==
-        ADMIN_SECRET
+        req.query.secret !== ADMIN_SECRET
       ) {
         return jsonError(
           res,
@@ -4843,10 +3421,7 @@ app.get(
             count: "exact",
             head: true,
           })
-          .eq(
-            "completed",
-            true
-          ),
+          .eq("completed", true),
 
         supabase
           .from("keys")
@@ -4861,10 +3436,7 @@ app.get(
             count: "exact",
             head: true,
           })
-          .eq(
-            "active",
-            true
-          )
+          .eq("active", true)
           .gt(
             "expires_at",
             now().toISOString()
@@ -4880,26 +3452,16 @@ app.get(
 
       return res.json({
         ok: true,
-
         sessions:
-          sessionsResult.count ||
-          0,
-
+          sessionsResult.count || 0,
         completed:
-          completedResult.count ||
-          0,
-
+          completedResult.count || 0,
         keys:
-          keysResult.count ||
-          0,
-
+          keysResult.count || 0,
         activeKeys:
-          activeKeysResult.count ||
-          0,
-
+          activeKeysResult.count || 0,
         postbacks:
-          postbacksResult.count ||
-          0,
+          postbacksResult.count || 0,
       });
     } catch (error) {
       console.error(
@@ -4916,11 +3478,8 @@ app.get(
   }
 );
 
-app.listen(
-  PORT,
-  () => {
-    console.log(
-      `Nameless Hub server running on port ${PORT}`
-    );
-  }
-);
+app.listen(PORT, () => {
+  console.log(
+    `Nameless Hub server running on port ${PORT}`
+  );
+});
