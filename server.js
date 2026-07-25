@@ -2831,9 +2831,64 @@ app.get(
   startKeyFlow
 );
 
+function normalizeApiText(value) {
+  let text = String(
+    value ?? ""
+  );
+
+  text = text.replace(
+    /^\uFEFF/,
+    ""
+  );
+
+  // decode basic HTML entities (Linkvertise иногда отдаёт HTML-escaped текст)
+  text = text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+  // strip any HTML tags
+  text = text.replace(
+    /<[^>]+>/g,
+    " "
+  );
+
+  text = text.trim();
+
+  while (
+    text.length >= 2 &&
+    (
+      text[0] === '"' ||
+      text[0] === "'"
+    ) &&
+    text[text.length - 1] ===
+      text[0]
+  ) {
+    text = text
+      .slice(1, -1)
+      .trim();
+  }
+
+  text = text.replace(
+    /\s+/g,
+    " "
+  );
+
+  return text
+    .toLowerCase()
+    .trim();
+}
+
 function classifyLinkvertiseResponse(
-  value
+  value,
+  depth = 0
 ) {
+  if (depth > 8) {
+    return null;
+  }
+
   if (
     typeof value ===
     "boolean"
@@ -2846,32 +2901,9 @@ function classifyLinkvertiseResponse(
     "string"
   ) {
     const normalized =
-      value
-        .replace(
-          /^\uFEFF/,
-          ""
-        )
-        .trim()
-        .replace(
-          /^["']|["']$/g,
-          ""
-        )
-        .trim()
-        .toLowerCase();
-
-    if (
-      normalized ===
-      "true"
-    ) {
-      return true;
-    }
-
-    if (
-      normalized ===
-      "false"
-    ) {
-      return false;
-    }
+      normalizeApiText(
+        value
+      );
 
     if (
       normalized.includes(
@@ -2879,6 +2911,85 @@ function classifyLinkvertiseResponse(
       )
     ) {
       return "invalid_token";
+    }
+
+    const trueValues =
+      new Set([
+        "true",
+        "1",
+        "yes",
+        "ok",
+        "valid",
+        "verified",
+        "success",
+        "successful",
+        "approved",
+      ]);
+
+    const falseValues =
+      new Set([
+        "false",
+        "0",
+        "no",
+        "invalid",
+        "failed",
+        "failure",
+        "expired",
+        "not found",
+        "hash not found",
+      ]);
+
+    if (
+      trueValues.has(
+        normalized
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      falseValues.has(
+        normalized
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      normalized.includes(
+        "hash was found"
+      ) ||
+      normalized.includes(
+        "found and deleted"
+      ) ||
+      normalized.includes(
+        "verification successful"
+      ) ||
+      normalized.includes(
+        "successfully verified"
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      normalized.includes(
+        "hash could not be found"
+      ) ||
+      normalized.includes(
+        "hash was not found"
+      ) ||
+      normalized.includes(
+        "invalid hash"
+      ) ||
+      normalized.includes(
+        "hash expired"
+      ) ||
+      normalized.includes(
+        "already used"
+      )
+    ) {
+      return false;
     }
 
     return null;
@@ -2892,7 +3003,8 @@ function classifyLinkvertiseResponse(
     ) {
       const result =
         classifyLinkvertiseResponse(
-          item
+          item,
+          depth + 1
         );
 
       if (
@@ -2914,11 +3026,14 @@ function classifyLinkvertiseResponse(
       "valid",
       "verified",
       "success",
+      "successful",
+      "approved",
       "result",
       "response",
-      "status",
       "data",
+      "value",
       "message",
+      "status",
     ];
 
     for (
@@ -2932,7 +3047,8 @@ function classifyLinkvertiseResponse(
 
       const result =
         classifyLinkvertiseResponse(
-          value[field]
+          value[field],
+          depth + 1
         );
 
       if (
@@ -2941,6 +3057,24 @@ function classifyLinkvertiseResponse(
         return result;
       }
     }
+
+    for (const nested of Object.values(
+      value
+    )) {
+      const result =
+        classifyLinkvertiseResponse(
+          nested,
+          depth + 1
+        );
+
+      if (
+        result !== null
+      ) {
+        return result;
+      }
+    }
+
+    return null;
   }
 
   return null;
