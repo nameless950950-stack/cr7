@@ -919,7 +919,7 @@ h1 {
   pointer-events: none;
 }
 
-.spot.is-active::after {
+.spot.spot-glow::after {
   opacity: 1;
 }
 
@@ -1791,7 +1791,7 @@ const spotlightScript = `
             element
               .classList
               .add(
-                "is-active"
+                "spot-glow"
               );
           }
         );
@@ -1811,7 +1811,7 @@ const spotlightScript = `
                       element
                         .classList
                         .remove(
-                          "is-active"
+                          "spot-glow"
                         );
                     },
                     260
@@ -2125,14 +2125,13 @@ function getKeyPage(uid) {
             >
 
             <label
-              class="method spot is-active"
+              class="method spot"
             >
               <input
                 class="method-input"
                 type="radio"
                 name="method"
                 value="lootlabs"
-                checked
               >
 
               <span class="method-icon">
@@ -2158,12 +2157,13 @@ function getKeyPage(uid) {
               </span>
             </label>
 
-            <label class="method spot">
+            <label class="method spot is-active">
               <input
                 class="method-input"
                 type="radio"
                 name="method"
                 value="linkvertise"
+                checked
               >
 
               <span class="method-icon">
