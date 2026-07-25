@@ -1788,11 +1788,15 @@ app.get("/", (req, res) => {
     );
 
   if (linkvertiseHash) {
-    return res.redirect(
-      302,
-      "/linkvertise/complete?hash=" +
-        encodeURIComponent(linkvertiseHash)
-    );
+    // IMPORTANT: Linkvertise only stores the anti-bypass hash for 10 seconds
+    // and it can only be verified ONCE. A 302 redirect here forces the browser
+    // to make a second full round-trip (DNS/TLS/HTTP) to /linkvertise/complete,
+    // which can burn several seconds — or, worse, if the server was cold
+    // (Render free/hobby dynos spin down after inactivity), waking up alone
+    // can take 20-50s and blow through the 10s window entirely. That produces
+    // exactly the "expired or was already used" error even on a legitimate pass.
+    // Fix: handle it in-process instead of round-tripping the browser.
+    return handleLinkvertiseComplete(req, res, linkvertiseHash);
   }
 
   const hasKeyFlowQuery = Boolean(
@@ -2145,191 +2149,201 @@ app.get(
   }
 );
 
+async function handleLinkvertiseComplete(req, res, hashOverride) {
+  try {
+    if (isOldRenderHost(req)) {
+      return redirectToPublicOrigin(req, res);
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+
+    const hash =
+      hashOverride ||
+      normalizeLinkvertiseHash(
+        firstQueryValue(req.query.hash)
+      );
+
+    if (!hash) {
+      return res
+        .status(400)
+        .type("html")
+        .send(
+          errorPage(
+            "Verification is missing.",
+            "Complete the Linkvertise access step before opening this page."
+          )
+        );
+    }
+
+    // Fire the Linkvertise verification and the session lookup TOGETHER.
+    // Linkvertise only holds the hash for 10 seconds and it's single-use —
+    // doing these sequentially (session lookup first, then verify) was
+    // wasting a full DB round-trip out of that 10-second budget on every
+    // request. Running them in parallel gets the verify call out the door
+    // as early as possible.
+    const [result, verification] = await Promise.all([
+      getSessionByCookies(req),
+      verifyLinkvertiseHash(hash),
+    ]);
+
+    const sid = result.sid;
+    const uid = result.uid;
+    const session = result.session;
+
+    if (!sid || !uid || !session) {
+      return res
+        .status(400)
+        .type("html")
+        .send(
+          errorPage(
+            "Session not found.",
+            "Open Get Key from Nameless Hub and try again."
+          )
+        );
+    }
+
+    if (
+      session.completed ||
+      session.claimed
+    ) {
+      return res.redirect("/complete");
+    }
+
+    if (
+      new Date(session.expires_at) <= now()
+    ) {
+      return res
+        .status(410)
+        .type("html")
+        .send(
+          errorPage(
+            "Session expired.",
+            "Create a fresh key request from Nameless Hub.",
+            uid
+          )
+        );
+    }
+
+    if (!verification.ok) {
+      if (
+        verification.reason ===
+        "invalid_token"
+      ) {
+        console.error(
+          "LINKVERTISE_INVALID_TOKEN"
+        );
+
+        return res
+          .status(503)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification unavailable.",
+              "The Linkvertise token is not configured correctly.",
+              uid
+            )
+          );
+      }
+
+      return res
+        .status(403)
+        .type("html")
+        .send(
+          errorPage(
+            "Completion not verified.",
+            "The verification expired or was already used. Create a new request.",
+            uid
+          )
+        );
+    }
+
+    const completedAt = now();
+
+    const { error: updateError } =
+      await supabase
+        .from("key_sessions")
+        .update({
+          completed: true,
+          completed_at:
+            completedAt.toISOString(),
+        })
+        .eq("sid", sid)
+        .eq("uid", uid)
+        .eq("completed", false);
+
+    if (updateError) {
+      console.error(
+        "LINKVERTISE_SESSION_UPDATE_ERROR",
+        updateError
+      );
+
+      return res
+        .status(500)
+        .type("html")
+        .send(
+          errorPage(
+            "Key could not be prepared.",
+            "The key service is temporarily unavailable.",
+            uid
+          )
+        );
+    }
+
+    const verificationId =
+      "linkvertise:" + sha256(hash);
+
+    const { error: logError } =
+      await supabase
+        .from("postbacks")
+        .insert({
+          unique_id: verificationId,
+          sid,
+          uid,
+          lootlabs_ip: "",
+          request_ip: clientIp(req),
+          query: {
+            provider: "linkvertise",
+            hash_sha256: sha256(hash),
+          },
+          created_at:
+            completedAt.toISOString(),
+        });
+
+    if (
+      logError &&
+      logError.code !== "23505"
+    ) {
+      console.error(
+        "LINKVERTISE_LOG_ERROR",
+        logError
+      );
+    }
+
+    return res.redirect("/complete");
+  } catch (error) {
+    console.error(
+      "LINKVERTISE_COMPLETE_ERROR",
+      error
+    );
+
+    return res
+      .status(502)
+      .type("html")
+      .send(
+        errorPage(
+          "Verification unavailable.",
+          "Linkvertise could not be reached in time. Create a new request.",
+          req.query.uid
+        )
+      );
+  }
+}
+
 app.get(
   "/linkvertise/complete",
   strictLimiter,
   async (req, res) => {
-    try {
-      if (isOldRenderHost(req)) {
-        return redirectToPublicOrigin(req, res);
-      }
-
-      res.setHeader("Cache-Control", "no-store");
-
-      const result =
-        await getSessionByCookies(req);
-
-      const sid = result.sid;
-      const uid = result.uid;
-      const session = result.session;
-
-      if (!sid || !uid || !session) {
-        return res
-          .status(400)
-          .type("html")
-          .send(
-            errorPage(
-              "Session not found.",
-              "Open Get Key from Nameless Hub and try again."
-            )
-          );
-      }
-
-      if (
-        session.completed ||
-        session.claimed
-      ) {
-        return res.redirect("/complete");
-      }
-
-      if (
-        new Date(session.expires_at) <= now()
-      ) {
-        return res
-          .status(410)
-          .type("html")
-          .send(
-            errorPage(
-              "Session expired.",
-              "Create a fresh key request from Nameless Hub.",
-              uid
-            )
-          );
-      }
-
-      const hash = normalizeLinkvertiseHash(
-        firstQueryValue(req.query.hash)
-      );
-
-      if (!hash) {
-        return res
-          .status(400)
-          .type("html")
-          .send(
-            errorPage(
-              "Verification is missing.",
-              "Complete the Linkvertise access step before opening this page.",
-              uid
-            )
-          );
-      }
-
-      const verification =
-        await verifyLinkvertiseHash(hash);
-
-      if (!verification.ok) {
-        if (
-          verification.reason ===
-          "invalid_token"
-        ) {
-          console.error(
-            "LINKVERTISE_INVALID_TOKEN"
-          );
-
-          return res
-            .status(503)
-            .type("html")
-            .send(
-              errorPage(
-                "Verification unavailable.",
-                "The Linkvertise token is not configured correctly.",
-                uid
-              )
-            );
-        }
-
-        return res
-          .status(403)
-          .type("html")
-          .send(
-            errorPage(
-              "Completion not verified.",
-              "The verification expired or was already used. Create a new request.",
-              uid
-            )
-          );
-      }
-
-      const completedAt = now();
-
-      const { error: updateError } =
-        await supabase
-          .from("key_sessions")
-          .update({
-            completed: true,
-            completed_at:
-              completedAt.toISOString(),
-          })
-          .eq("sid", sid)
-          .eq("uid", uid)
-          .eq("completed", false);
-
-      if (updateError) {
-        console.error(
-          "LINKVERTISE_SESSION_UPDATE_ERROR",
-          updateError
-        );
-
-        return res
-          .status(500)
-          .type("html")
-          .send(
-            errorPage(
-              "Key could not be prepared.",
-              "The key service is temporarily unavailable.",
-              uid
-            )
-          );
-      }
-
-      const verificationId =
-        "linkvertise:" + sha256(hash);
-
-      const { error: logError } =
-        await supabase
-          .from("postbacks")
-          .insert({
-            unique_id: verificationId,
-            sid,
-            uid,
-            lootlabs_ip: "",
-            request_ip: clientIp(req),
-            query: {
-              provider: "linkvertise",
-              hash_sha256: sha256(hash),
-            },
-            created_at:
-              completedAt.toISOString(),
-          });
-
-      if (
-        logError &&
-        logError.code !== "23505"
-      ) {
-        console.error(
-          "LINKVERTISE_LOG_ERROR",
-          logError
-        );
-      }
-
-      return res.redirect("/complete");
-    } catch (error) {
-      console.error(
-        "LINKVERTISE_COMPLETE_ERROR",
-        error
-      );
-
-      return res
-        .status(502)
-        .type("html")
-        .send(
-          errorPage(
-            "Verification unavailable.",
-            "Linkvertise could not be reached in time. Create a new request.",
-            req.query.uid
-          )
-        );
-    }
+    return handleLinkvertiseComplete(req, res);
   }
 );
 
