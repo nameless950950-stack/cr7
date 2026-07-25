@@ -694,9 +694,21 @@ body::before {
 }
 
 button,
-a {
+a,
+label,
+input,
+.method {
   -webkit-tap-highlight-color:
     transparent;
+}
+
+.method,
+.method-input,
+.method:focus,
+.method:focus-visible,
+.method-input:focus,
+.method-input:focus-visible {
+  outline: none;
 }
 
 .page {
@@ -990,6 +1002,10 @@ h1 {
   background:
     rgba(255, 255, 255, .04);
   cursor: pointer;
+  opacity: 1;
+  filter:
+    brightness(1)
+    saturate(1);
   transition:
     border-color
       .25s
@@ -1001,6 +1017,12 @@ h1 {
       .25s
       cubic-bezier(.16, 1, .3, 1),
     box-shadow
+      .25s
+      cubic-bezier(.16, 1, .3, 1),
+    opacity
+      .25s
+      cubic-bezier(.16, 1, .3, 1),
+    filter
       .25s
       cubic-bezier(.16, 1, .3, 1);
 }
@@ -1015,6 +1037,13 @@ h1 {
   box-shadow:
     0 14px 30px -18px
     rgba(255, 60, 75, .5);
+}
+
+.method:not(.is-active) {
+  opacity: .5;
+  filter:
+    brightness(.7)
+    saturate(.75);
 }
 
 @media (
