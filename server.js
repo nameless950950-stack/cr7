@@ -2139,7 +2139,7 @@ function getKeyPage(uid) {
 
               <span class="method-icon">
                 <img
-                  src="https://linkvertise.com/favicon.ico"
+                  src="https://cdn3.emoji.gg/emojis/20379-linkvertise.png"
                   alt="Linkvertise"
                   referrerpolicy="no-referrer"
                   onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
@@ -2152,7 +2152,7 @@ function getKeyPage(uid) {
 
               <span class="method-copy">
                 <strong>Linkvertise</strong>
-                <span>Anti-Bypass verification</span>
+                <span>About ~1 minute</span>
               </span>
 
               <span class="method-arrow">
