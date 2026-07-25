@@ -48,6 +48,22 @@ const LINKVERTISE_TOKEN = String(
 const LINKVERTISE_VERIFY_URL =
   "https://publisher.linkvertise.com/api/v1/anti_bypassing";
 
+// MAINTENANCE modes:
+// 0 = both LootLabs and Linkvertise work normally
+// 1 = LootLabs is under maintenance (shown as "Currently unavailable", disabled)
+// 2 = Linkvertise is under maintenance (shown as "Currently unavailable", disabled)
+const MAINTENANCE = Number(
+  process.env.MAINTENANCE || 0
+);
+
+function lootlabsInMaintenance() {
+  return MAINTENANCE === 1;
+}
+
+function linkvertiseInMaintenance() {
+  return MAINTENANCE === 2;
+}
+
 const KEY_TTL_HOURS = Number(
   process.env.KEY_TTL_HOURS || 6
 );
@@ -1044,6 +1060,15 @@ h1 {
   filter:
     brightness(.7)
     saturate(.75);
+}
+
+.method.is-disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: .35;
+  filter:
+    grayscale(.5)
+    brightness(.55);
 }
 
 @media (
@@ -2097,6 +2122,28 @@ function getKeyPage(uid) {
   const safeUid =
     normalizeUid(uid);
 
+  const lootlabsDisabled =
+    lootlabsInMaintenance();
+
+  const linkvertiseDisabled =
+    linkvertiseInMaintenance();
+
+  const linkvertiseChecked =
+    !linkvertiseDisabled;
+
+  const lootlabsChecked =
+    !linkvertiseChecked;
+
+  const lootlabsStatusText =
+    lootlabsDisabled
+      ? "Currently unavailable"
+      : "About 2 minutes";
+
+  const linkvertiseStatusText =
+    linkvertiseDisabled
+      ? "Currently unavailable"
+      : "About ~1 minute";
+
   const body = safeUid
     ? `
       <main class="page">
@@ -2125,45 +2172,31 @@ function getKeyPage(uid) {
             >
 
             <label
-              class="method spot"
+              class="method spot${
+                linkvertiseChecked
+                  ? " is-active"
+                  : ""
+              }${
+                linkvertiseDisabled
+                  ? " is-disabled"
+                  : ""
+              }"
             >
               <input
                 class="method-input"
                 type="radio"
                 name="method"
-                value="lootlabs"
-              >
-
-              <span class="method-icon">
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4D0BAQFC2ErrY3XtXw/company-logo_200_200/company-logo_200_200/0/1684408131437/lootlabsgg_logo?e=2147483647&amp;v=beta&amp;t=kO3BbH2OnfQqlSm8hd1K1IhD4cJlEQgCWWDjM4DwLpE"
-                  alt="LootLabs"
-                  referrerpolicy="no-referrer"
-                  onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
-                >
-
-                <span class="method-fallback">
-                  LL
-                </span>
-              </span>
-
-              <span class="method-copy">
-                <strong>LootLabs</strong>
-                <span>About 2 minutes</span>
-              </span>
-
-              <span class="method-arrow">
-                ›
-              </span>
-            </label>
-
-            <label class="method spot is-active">
-              <input
-                class="method-input"
-                type="radio"
-                name="method"
                 value="linkvertise"
-                checked
+                ${
+                  linkvertiseChecked
+                    ? "checked"
+                    : ""
+                }
+                ${
+                  linkvertiseDisabled
+                    ? "disabled"
+                    : ""
+                }
               >
 
               <span class="method-icon">
@@ -2181,7 +2214,58 @@ function getKeyPage(uid) {
 
               <span class="method-copy">
                 <strong>Linkvertise</strong>
-                <span>About ~1 minute</span>
+                <span>${linkvertiseStatusText}</span>
+              </span>
+
+              <span class="method-arrow">
+                ›
+              </span>
+            </label>
+
+            <label
+              class="method spot${
+                lootlabsChecked
+                  ? " is-active"
+                  : ""
+              }${
+                lootlabsDisabled
+                  ? " is-disabled"
+                  : ""
+              }"
+            >
+              <input
+                class="method-input"
+                type="radio"
+                name="method"
+                value="lootlabs"
+                ${
+                  lootlabsChecked
+                    ? "checked"
+                    : ""
+                }
+                ${
+                  lootlabsDisabled
+                    ? "disabled"
+                    : ""
+                }
+              >
+
+              <span class="method-icon">
+                <img
+                  src="https://media.licdn.com/dms/image/v2/D4D0BAQFC2ErrY3XtXw/company-logo_200_200/company-logo_200_200/0/1684408131437/lootlabsgg_logo?e=2147483647&amp;v=beta&amp;t=kO3BbH2OnfQqlSm8hd1K1IhD4cJlEQgCWWDjM4DwLpE"
+                  alt="LootLabs"
+                  referrerpolicy="no-referrer"
+                  onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
+                >
+
+                <span class="method-fallback">
+                  LL
+                </span>
+              </span>
+
+              <span class="method-copy">
+                <strong>LootLabs</strong>
+                <span>${lootlabsStatusText}</span>
               </span>
 
               <span class="method-arrow">
@@ -2737,6 +2821,40 @@ async function startKeyFlow(
           errorPage(
             "Linkvertise is unavailable.",
             "The Linkvertise method is not configured yet.",
+            uid
+          )
+        );
+    }
+
+    if (
+      method ===
+        "lootlabs" &&
+      lootlabsInMaintenance()
+    ) {
+      return res
+        .status(503)
+        .type("html")
+        .send(
+          errorPage(
+            "LootLabs is unavailable.",
+            "LootLabs is currently under maintenance. Please use Linkvertise instead.",
+            uid
+          )
+        );
+    }
+
+    if (
+      method ===
+        "linkvertise" &&
+      linkvertiseInMaintenance()
+    ) {
+      return res
+        .status(503)
+        .type("html")
+        .send(
+          errorPage(
+            "Linkvertise is unavailable.",
+            "Linkvertise is currently under maintenance. Please use LootLabs instead.",
             uid
           )
         );
