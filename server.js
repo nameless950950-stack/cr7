@@ -206,6 +206,80 @@ function normalizeUserAgent(value) {
     .slice(0, 300);
 }
 
+function userAgentBinding(value) {
+  const userAgent =
+    normalizeUserAgent(
+      value
+    ).toLowerCase();
+
+  let platform = "other";
+
+  if (/android/.test(userAgent)) {
+    platform = "android";
+  } else if (
+    /iphone|ipad|ipod/.test(
+      userAgent
+    )
+  ) {
+    platform = "ios";
+  } else if (
+    /windows/.test(userAgent)
+  ) {
+    platform = "windows";
+  } else if (
+    /macintosh|mac os x/.test(
+      userAgent
+    )
+  ) {
+    platform = "macos";
+  } else if (/linux/.test(userAgent)) {
+    platform = "linux";
+  }
+
+  let browser = "other";
+
+  if (
+    /samsungbrowser/.test(
+      userAgent
+    )
+  ) {
+    browser = "samsung";
+  } else if (
+    /edg\//.test(userAgent)
+  ) {
+    browser = "edge";
+  } else if (
+    /firefox|fxios/.test(
+      userAgent
+    )
+  ) {
+    browser = "firefox";
+  } else if (
+    /chrome|crios|chromium|; wv\)/.test(
+      userAgent
+    )
+  ) {
+    browser = "chromium";
+  } else if (
+    /safari/.test(userAgent)
+  ) {
+    browser = "safari";
+  }
+
+  const device =
+    /mobile|android|iphone|ipad|ipod/.test(
+      userAgent
+    )
+      ? "mobile"
+      : "desktop";
+
+  return [
+    platform,
+    browser,
+    device,
+  ].join(":");
+}
+
 function hmacSha256Base64Url(text) {
   return crypto
     .createHmac(
@@ -255,7 +329,7 @@ function makeLinkvertiseFlowToken(
         .randomBytes(18)
         .toString("base64url"),
     ua: sha256(
-      normalizeUserAgent(
+      userAgentBinding(
         userAgent
       )
     ).slice(0, 32),
@@ -362,7 +436,7 @@ function verifyLinkvertiseFlowToken(
   }
 
   const currentUaHash = sha256(
-    normalizeUserAgent(
+    userAgentBinding(
       userAgent
     )
   ).slice(0, 32);
@@ -453,25 +527,13 @@ function linkvertiseReturnNavigation(req) {
     .trim()
     .toLowerCase();
 
-  if (site !== "cross-site") {
-    return {
-      ok: false,
-      reason:
-        site === "none"
-          ? "direct_navigation"
-          : "invalid_navigation_source",
-      site,
-      mode,
-      destination,
-    };
-  }
-
   if (
     mode &&
     mode !== "navigate"
   ) {
     return {
       ok: false,
+      hardBlock: true,
       reason: "invalid_navigation_mode",
       site,
       mode,
@@ -485,6 +547,7 @@ function linkvertiseReturnNavigation(req) {
   ) {
     return {
       ok: false,
+      hardBlock: true,
       reason:
         "invalid_navigation_destination",
       site,
@@ -497,9 +560,12 @@ function linkvertiseReturnNavigation(req) {
     req.headers.referer || ""
   ).trim();
 
+  let refererHost = "";
+  let trustedReferer = null;
+
   if (referer) {
     try {
-      const host = new URL(
+      refererHost = new URL(
         referer
       ).hostname.toLowerCase();
 
@@ -508,45 +574,58 @@ function linkvertiseReturnNavigation(req) {
           LINKVERTISE_URL
         ).hostname.toLowerCase();
 
-      const trustedReferer =
-        host === configuredHost ||
-        host === "linkvertise.com" ||
-        host.endsWith(
+      trustedReferer =
+        refererHost ===
+          configuredHost ||
+        refererHost ===
+          "linkvertise.com" ||
+        refererHost.endsWith(
           ".linkvertise.com"
         ) ||
-        host === "link-hub.net" ||
-        host.endsWith(
+        refererHost ===
+          "link-hub.net" ||
+        refererHost.endsWith(
           ".link-hub.net"
         );
-
-      if (!trustedReferer) {
-        return {
-          ok: false,
-          reason:
-            "untrusted_return_referer",
-          site,
-          mode,
-          destination,
-          refererHost: host,
-        };
-      }
     } catch {
-      return {
-        ok: false,
-        reason:
-          "invalid_return_referer",
-        site,
-        mode,
-        destination,
-      };
+      trustedReferer = false;
     }
+  }
+
+  let signal = "normal_return";
+
+  if (
+    site === "none" ||
+    !site
+  ) {
+    signal =
+      "browser_omitted_return_source";
+  } else if (
+    site !== "cross-site" &&
+    site !== "same-site"
+  ) {
+    signal =
+      "unusual_return_source";
+  }
+
+  if (trustedReferer === false) {
+    signal =
+      "untrusted_or_invalid_referer";
+  } else if (
+    trustedReferer === null &&
+    signal === "normal_return"
+  ) {
+    signal = "referer_omitted";
   }
 
   return {
     ok: true,
+    hardBlock: false,
+    signal,
     site,
     mode,
     destination,
+    refererHost,
   };
 }
 
@@ -565,7 +644,7 @@ function makeLinkvertiseReturnProof(
         String(hash || "")
       ),
       sha256(
-        normalizeUserAgent(
+        userAgentBinding(
           userAgent
         )
       ),
@@ -2411,6 +2490,13 @@ function linkvertiseTransitionPage(
       } catch {}
 
       try {
+        localStorage.setItem(
+          storageKey,
+          flowToken
+        );
+      } catch {}
+
+      try {
         window.name =
           "nhlv:" + flowToken;
       } catch {}
@@ -2512,6 +2598,15 @@ function linkvertiseCallbackPage(
             ) || "";
         } catch {}
 
+        if (!token) {
+          try {
+            token =
+              localStorage.getItem(
+                storageKey
+              ) || "";
+          } catch {}
+        }
+
         if (
           !token &&
           typeof window.name ===
@@ -2532,7 +2627,7 @@ function linkvertiseCallbackPage(
           "Verification blocked";
 
         lead.textContent =
-          "Start a new request and complete Linkvertise in the same tab.";
+          "Start a new request and complete Linkvertise in the same browser.";
 
         status.textContent =
           message;
@@ -2544,7 +2639,7 @@ function linkvertiseCallbackPage(
 
         if (!flowToken) {
           fail(
-            "The original browser-tab proof is missing. Bypass links and copied completion URLs are not accepted."
+            "The original browser proof is missing. Start Linkvertise again from the Get Key page."
           );
 
           return;
@@ -2595,6 +2690,10 @@ function linkvertiseCallbackPage(
 
           try {
             sessionStorage.removeItem(
+              storageKey
+            );
+
+            localStorage.removeItem(
               storageKey
             );
 
@@ -4250,10 +4349,34 @@ app.get(
           .send(
             errorPage(
               "Verification blocked.",
-              "Open the completion only through the normal Linkvertise return. Pasted final links are blocked.",
+              "The completion was not opened as a browser page.",
               uid
             )
           );
+      }
+
+      if (
+        navigation.signal !==
+        "normal_return"
+      ) {
+        console.warn(
+          "LINKVERTISE_RETURN_SIGNAL",
+          {
+            signal:
+              navigation.signal,
+            sid,
+            uid,
+            site:
+              navigation.site,
+            mode:
+              navigation.mode,
+            destination:
+              navigation.destination,
+            refererHost:
+              navigation.refererHost,
+            ip: clientIp(req),
+          }
+        );
       }
 
       if (
@@ -4539,12 +4662,12 @@ app.post(
       }
 
       const startedUserAgent =
-        normalizeUserAgent(
+        userAgentBinding(
           session.start_user_agent
         );
 
       const currentUserAgent =
-        normalizeUserAgent(
+        userAgentBinding(
           req.headers[
             "user-agent"
           ]
@@ -4571,7 +4694,7 @@ app.post(
         return jsonError(
           res,
           403,
-          "The browser session changed. Start a new request and stay in the same tab."
+          "The browser or device changed. Start a new request in the same browser."
         );
       }
 
