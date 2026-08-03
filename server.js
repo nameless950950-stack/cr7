@@ -2760,6 +2760,7 @@ app.get("/api/stats", async (req, res) => {
       count: loaderExecutionCountCache,
       storageOk: loaderStatsLastError === null,
       storageErrorCode: loaderStatsLastError?.code || null,
+      storageErrorMessage: loaderStatsLastError?.message || null,
     });
   } catch (error) {
     console.error("LOADER_STATS_READ_ERROR", error);
