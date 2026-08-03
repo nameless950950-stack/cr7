@@ -2565,7 +2565,7 @@ function recordLoaderExecution(req) {
           request_ip: clientIp(req),
           query: {
             type: "loader_execution",
-            userAgent: normalizeUserAgent(req.headers["user-agent"]),
+            userAgent: String(req.headers["user-agent"] || "").trim().slice(0, 300),
             createdAt,
           },
           created_at: createdAt,
@@ -2760,7 +2760,6 @@ app.get("/api/stats", async (req, res) => {
       count: loaderExecutionCountCache,
       storageOk: loaderStatsLastError === null,
       storageErrorCode: loaderStatsLastError?.code || null,
-      storageErrorMessage: loaderStatsLastError?.message || null,
     });
   } catch (error) {
     console.error("LOADER_STATS_READ_ERROR", error);
