@@ -72,6 +72,21 @@ const SESSION_TTL_MINUTES = Number(
   process.env.SESSION_TTL_MINUTES || 60
 );
 
+const LINKVERTISE_MIN_SECONDS = Math.max(
+  0,
+  Number(
+    process.env.LINKVERTISE_MIN_SECONDS || 20
+  )
+);
+
+const LINKVERTISE_FLOW_TTL_SECONDS = Math.max(
+  60,
+  Number(
+    process.env.LINKVERTISE_FLOW_TTL_SECONDS ||
+      SESSION_TTL_MINUTES * 60
+  )
+);
+
 const PUBLIC_ORIGIN = String(
   process.env.PUBLIC_ORIGIN ||
     "https://nhhub.top"
@@ -180,6 +195,236 @@ function sha256(text) {
 function hashKey(key) {
   return sha256(
     `${KEY_PEPPER}:${key}`
+  );
+}
+
+function normalizeUserAgent(value) {
+  return String(
+    value || ""
+  )
+    .trim()
+    .slice(0, 300);
+}
+
+function hmacSha256Base64Url(text) {
+  return crypto
+    .createHmac(
+      "sha256",
+      KEY_PEPPER
+    )
+    .update(String(text))
+    .digest("base64url");
+}
+
+function safeEqualText(left, right) {
+  const leftBuffer = Buffer.from(
+    String(left || "")
+  );
+
+  const rightBuffer = Buffer.from(
+    String(right || "")
+  );
+
+  if (
+    leftBuffer.length !==
+    rightBuffer.length
+  ) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    leftBuffer,
+    rightBuffer
+  );
+}
+
+function makeLinkvertiseFlowToken(
+  sid,
+  uid,
+  userAgent
+) {
+  const payload = {
+    v: 1,
+    sid,
+    uid,
+    iat: Math.floor(
+      Date.now() / 1000
+    ),
+    nonce:
+      crypto
+        .randomBytes(18)
+        .toString("base64url"),
+    ua: sha256(
+      normalizeUserAgent(
+        userAgent
+      )
+    ).slice(0, 32),
+  };
+
+  const encoded = Buffer
+    .from(
+      JSON.stringify(payload)
+    )
+    .toString("base64url");
+
+  const signature =
+    hmacSha256Base64Url(
+      `linkvertise-flow:${encoded}`
+    );
+
+  return `${encoded}.${signature}`;
+}
+
+function verifyLinkvertiseFlowToken(
+  token,
+  sid,
+  uid,
+  userAgent
+) {
+  const cleanToken = String(
+    token || ""
+  ).trim();
+
+  if (
+    !cleanToken ||
+    cleanToken.length > 2048
+  ) {
+    return {
+      ok: false,
+      reason: "missing_flow",
+    };
+  }
+
+  const parts =
+    cleanToken.split(".");
+
+  if (parts.length !== 2) {
+    return {
+      ok: false,
+      reason: "invalid_flow",
+    };
+  }
+
+  const [encoded, signature] =
+    parts;
+
+  const expectedSignature =
+    hmacSha256Base64Url(
+      `linkvertise-flow:${encoded}`
+    );
+
+  if (
+    !safeEqualText(
+      signature,
+      expectedSignature
+    )
+  ) {
+    return {
+      ok: false,
+      reason: "invalid_signature",
+    };
+  }
+
+  let payload;
+
+  try {
+    payload = JSON.parse(
+      Buffer
+        .from(
+          encoded,
+          "base64url"
+        )
+        .toString("utf8")
+    );
+  } catch {
+    return {
+      ok: false,
+      reason: "invalid_flow",
+    };
+  }
+
+  if (
+    !payload ||
+    payload.v !== 1 ||
+    payload.sid !== sid ||
+    payload.uid !== uid ||
+    !Number.isFinite(
+      payload.iat
+    ) ||
+    typeof payload.nonce !==
+      "string" ||
+    payload.nonce.length < 16
+  ) {
+    return {
+      ok: false,
+      reason: "flow_mismatch",
+    };
+  }
+
+  const currentUaHash = sha256(
+    normalizeUserAgent(
+      userAgent
+    )
+  ).slice(0, 32);
+
+  if (
+    !safeEqualText(
+      payload.ua,
+      currentUaHash
+    )
+  ) {
+    return {
+      ok: false,
+      reason: "browser_changed",
+    };
+  }
+
+  const ageSeconds =
+    Math.floor(
+      Date.now() / 1000
+    ) - payload.iat;
+
+  if (ageSeconds < -30) {
+    return {
+      ok: false,
+      reason: "invalid_clock",
+    };
+  }
+
+  if (
+    ageSeconds >
+    LINKVERTISE_FLOW_TTL_SECONDS
+  ) {
+    return {
+      ok: false,
+      reason: "flow_expired",
+    };
+  }
+
+  if (
+    ageSeconds <
+    LINKVERTISE_MIN_SECONDS
+  ) {
+    return {
+      ok: false,
+      reason: "too_fast",
+      ageSeconds,
+    };
+  }
+
+  return {
+    ok: true,
+    ageSeconds,
+  };
+}
+
+function isAutomationUserAgent(
+  userAgent
+) {
+  return /discordbot|telegrambot|slackbot|curl|wget|python-requests|python-urllib|aiohttp|axios|node-fetch|go-http-client|java\/|headlesschrome|phantomjs|playwright|puppeteer/i.test(
+    normalizeUserAgent(
+      userAgent
+    )
   );
 }
 
@@ -1920,6 +2165,286 @@ function page(
   `;
 }
 
+function linkvertiseTransitionPage(
+  uid,
+  sid,
+  userAgent
+) {
+  const flowToken =
+    makeLinkvertiseFlowToken(
+      sid,
+      uid,
+      userAgent
+    );
+
+  const storageKey =
+    `nh_lv_flow:${sid}`;
+
+  const content = `
+    <main class="page">
+      ${brand()}
+
+      <h1>Opening Linkvertise</h1>
+
+      <p class="lead">
+        Keep this tab open and complete the steps normally.
+      </p>
+
+      <section class="card spot">
+        <div class="loader-wrap">
+          <div>
+            <div class="loader"></div>
+
+            <strong>
+              Preparing secure verification
+            </strong>
+
+            <p>
+              You will be redirected automatically.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  `;
+
+  const script = `
+    (function () {
+      const storageKey =
+        ${JSON.stringify(storageKey)};
+
+      const flowToken =
+        ${JSON.stringify(flowToken)};
+
+      const target =
+        ${JSON.stringify(LINKVERTISE_URL)};
+
+      try {
+        sessionStorage.setItem(
+          storageKey,
+          flowToken
+        );
+      } catch {}
+
+      try {
+        window.name =
+          "nhlv:" + flowToken;
+      } catch {}
+
+      setTimeout(
+        function () {
+          window.location.replace(
+            target
+          );
+        },
+        250
+      );
+    })();
+  `;
+
+  return page(
+    "Opening Linkvertise · Nameless Hub",
+    "Preparing secure Linkvertise verification.",
+    content,
+    script,
+    "/get-key"
+  );
+}
+
+function linkvertiseCallbackPage(
+  sid,
+  uid,
+  hash
+) {
+  const storageKey =
+    `nh_lv_flow:${sid}`;
+
+  const content = `
+    <main class="page">
+      ${brand()}
+
+      <h1 id="title">
+        Checking Linkvertise
+      </h1>
+
+      <p
+        id="lead"
+        class="lead"
+      >
+        Confirming that this return came from the original browser tab.
+      </p>
+
+      <section
+        id="loading"
+        class="card spot"
+      >
+        <div class="loader-wrap">
+          <div>
+            <div class="loader"></div>
+
+            <strong>
+              Secure verification
+            </strong>
+
+            <p id="status">
+              Checking completion.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  `;
+
+  const script = `
+    (function () {
+      const storageKey =
+        ${JSON.stringify(storageKey)};
+
+      const hash =
+        ${JSON.stringify(String(hash))};
+
+      const status =
+        document.getElementById(
+          "status"
+        );
+
+      const title =
+        document.getElementById(
+          "title"
+        );
+
+      const lead =
+        document.getElementById(
+          "lead"
+        );
+
+      function getFlowToken() {
+        let token = "";
+
+        try {
+          token =
+            sessionStorage.getItem(
+              storageKey
+            ) || "";
+        } catch {}
+
+        if (
+          !token &&
+          typeof window.name ===
+            "string" &&
+          window.name.startsWith(
+            "nhlv:"
+          )
+        ) {
+          token =
+            window.name.slice(5);
+        }
+
+        return token;
+      }
+
+      function fail(message) {
+        title.textContent =
+          "Verification blocked";
+
+        lead.textContent =
+          "Start a new request and complete Linkvertise in the same tab.";
+
+        status.textContent =
+          message;
+      }
+
+      async function finish() {
+        const flowToken =
+          getFlowToken();
+
+        if (!flowToken) {
+          fail(
+            "The original browser-tab proof is missing. Bypass links and copied completion URLs are not accepted."
+          );
+
+          return;
+        }
+
+        try {
+          const response =
+            await fetch(
+              "/linkvertise/finalize",
+              {
+                method: "POST",
+                credentials:
+                  "include",
+                cache:
+                  "no-store",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    hash,
+                    flowToken,
+                  }),
+              }
+            );
+
+          const data =
+            await response
+              .json()
+              .catch(
+                function () {
+                  return {};
+                }
+              );
+
+          if (
+            !response.ok ||
+            !data.ok
+          ) {
+            fail(
+              data.message ||
+                "Linkvertise verification failed."
+            );
+
+            return;
+          }
+
+          try {
+            sessionStorage.removeItem(
+              storageKey
+            );
+
+            if (
+              window.name ===
+              "nhlv:" + flowToken
+            ) {
+              window.name = "";
+            }
+          } catch {}
+
+          window.location.replace(
+            "/complete"
+          );
+        } catch {
+          fail(
+            "The key server could not be reached."
+          );
+        }
+      }
+
+      finish();
+    })();
+  `;
+
+  return page(
+    "Checking Linkvertise · Nameless Hub",
+    "Confirming secure Linkvertise completion.",
+    content,
+    script,
+    "/linkvertise/callback"
+  );
+}
+
 function homePage() {
   const loaderCommand =
     `loadstring(game:HttpGet("${PUBLIC_ORIGIN}/loader"))()`;
@@ -2938,6 +3463,23 @@ async function startKeyFlow(
       method
     );
 
+    if (
+      method ===
+      "linkvertise"
+    ) {
+      return res
+        .type("html")
+        .send(
+          linkvertiseTransitionPage(
+            uid,
+            sid,
+            req.headers[
+              "user-agent"
+            ]
+          )
+        );
+    }
+
     return res.redirect(
       redirectUrl
     );
@@ -3493,14 +4035,296 @@ app.get(
           );
       }
 
+      if (
+        isAutomationUserAgent(
+          req.headers[
+            "user-agent"
+          ]
+        )
+      ) {
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              "automation_user_agent",
+            sid,
+            uid,
+            ip: clientIp(req),
+          }
+        );
+
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification blocked.",
+              "Automated bypass clients are not accepted.",
+              uid
+            )
+          );
+      }
+
+      return res
+        .type("html")
+        .send(
+          linkvertiseCallbackPage(
+            sid,
+            uid,
+            hash
+          )
+        );
+    } catch (error) {
+      console.error(
+        "LINKVERTISE_CALLBACK_ERROR",
+        error
+      );
+
+      return res
+        .status(500)
+        .type("html")
+        .send(
+          errorPage(
+            "Verification could not finish.",
+            "The key service is temporarily unavailable."
+          )
+        );
+    }
+  }
+);
+
+app.post(
+  "/linkvertise/finalize",
+  strictLimiter,
+  async (req, res) => {
+    try {
+      res.setHeader(
+        "Cache-Control",
+        "no-store"
+      );
+
+      const cookies =
+        parseCookies(req);
+
+      const sid =
+        normalizeSid(
+          cookies.ks_sid
+        );
+
+      const uid =
+        normalizeUid(
+          cookies.ks_uid
+        );
+
+      const method =
+        normalizeMethod(
+          cookies.ks_method
+        );
+
+      if (
+        !sid ||
+        !uid ||
+        method !==
+          "linkvertise"
+      ) {
+        return jsonError(
+          res,
+          400,
+          "Start Linkvertise from the Get Key page."
+        );
+      }
+
+      if (
+        isAutomationUserAgent(
+          req.headers[
+            "user-agent"
+          ]
+        )
+      ) {
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              "automation_user_agent",
+            sid,
+            uid,
+            ip: clientIp(req),
+          }
+        );
+
+        return jsonError(
+          res,
+          403,
+          "Automated bypass clients are not accepted."
+        );
+      }
+
+      const hash =
+        firstQueryValue(
+          req.body?.hash
+        );
+
+      const flowToken =
+        firstQueryValue(
+          req.body?.flowToken
+        );
+
+      const flow =
+        verifyLinkvertiseFlowToken(
+          flowToken,
+          sid,
+          uid,
+          req.headers[
+            "user-agent"
+          ]
+        );
+
+      if (!flow.ok) {
+        const messages = {
+          missing_flow:
+            "The original browser-tab proof is missing. Copied completion links are blocked.",
+
+          invalid_flow:
+            "The browser-tab proof is invalid. Start a new request.",
+
+          invalid_signature:
+            "The browser-tab proof was modified. Start a new request.",
+
+          flow_mismatch:
+            "This completion belongs to a different key request.",
+
+          browser_changed:
+            "The browser changed during verification. Complete Linkvertise in the original tab.",
+
+          invalid_clock:
+            "The verification timestamp is invalid. Start a new request.",
+
+          flow_expired:
+            "The verification session expired. Start a new request.",
+
+          too_fast:
+            "Linkvertise was completed too quickly. Bypass services are not allowed.",
+        };
+
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              flow.reason,
+            sid,
+            uid,
+            ageSeconds:
+              flow.ageSeconds,
+            ip: clientIp(req),
+          }
+        );
+
+        return jsonError(
+          res,
+          403,
+          messages[
+            flow.reason
+          ] ||
+            "Secure Linkvertise verification failed."
+        );
+      }
+
+      const {
+        data: session,
+        error:
+          sessionError,
+      } = await supabase
+        .from(
+          "key_sessions"
+        )
+        .select("*")
+        .eq("sid", sid)
+        .eq("uid", uid)
+        .maybeSingle();
+
+      if (sessionError) {
+        console.error(
+          "LINKVERTISE_SESSION_READ_ERROR",
+          sessionError
+        );
+
+        return jsonError(
+          res,
+          500,
+          "The key service is temporarily unavailable."
+        );
+      }
+
+      if (!session) {
+        return jsonError(
+          res,
+          404,
+          "Session not found. Create a new key request."
+        );
+      }
+
+      if (
+        new Date(
+          session.expires_at
+        ) <= now()
+      ) {
+        return jsonError(
+          res,
+          410,
+          "Session expired. Create a new key request."
+        );
+      }
+
+      const startedUserAgent =
+        normalizeUserAgent(
+          session.start_user_agent
+        );
+
+      const currentUserAgent =
+        normalizeUserAgent(
+          req.headers[
+            "user-agent"
+          ]
+        );
+
+      if (
+        startedUserAgent &&
+        !safeEqualText(
+          startedUserAgent,
+          currentUserAgent
+        )
+      ) {
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              "session_user_agent_changed",
+            sid,
+            uid,
+            ip: clientIp(req),
+          }
+        );
+
+        return jsonError(
+          res,
+          403,
+          "The browser session changed. Start a new request and stay in the same tab."
+        );
+      }
+
+      if (session.completed) {
+        return res.json({
+          ok: true,
+          alreadyCompleted: true,
+        });
+      }
+
       const verification =
         await verifyLinkvertiseHash(
           hash
         );
 
-      if (
-        !verification.ok
-      ) {
+      if (!verification.ok) {
         const messages = {
           invalid_hash:
             "The Linkvertise hash is invalid.",
@@ -3527,150 +4351,86 @@ app.get(
             "Linkvertise returned an unexpected response.",
         };
 
-        return res
-          .status(403)
-          .type("html")
-          .send(
-            errorPage(
-              "Verification failed.",
-
-              messages[
-                verification.reason
-              ] ||
-                "Linkvertise could not confirm completion.",
-
-              uid
-            )
-          );
+        return jsonError(
+          res,
+          403,
+          messages[
+            verification.reason
+          ] ||
+            "Linkvertise could not confirm completion."
+        );
       }
 
+      const completedAt =
+        now();
+
       const {
-        data: session,
         error:
-          sessionError,
+          updateError,
       } = await supabase
         .from(
           "key_sessions"
         )
-        .select("*")
+        .update({
+          completed: true,
+          completed_at:
+            completedAt
+              .toISOString(),
+        })
         .eq("sid", sid)
         .eq("uid", uid)
-        .maybeSingle();
+        .eq("completed", false);
 
-      if (sessionError) {
+      if (updateError) {
         console.error(
-          "LINKVERTISE_SESSION_READ_ERROR",
-          sessionError
+          "LINKVERTISE_SESSION_UPDATE_ERROR",
+          updateError
         );
 
-        return res
-          .status(500)
-          .type("html")
-          .send(
-            errorPage(
-              "Verification could not finish.",
-              "The key service is temporarily unavailable.",
-              uid
-            )
-          );
-      }
-
-      if (!session) {
-        return res
-          .status(404)
-          .type("html")
-          .send(
-            errorPage(
-              "Session not found.",
-              "Create a new key request.",
-              uid
-            )
-          );
+        return jsonError(
+          res,
+          500,
+          "The key service is temporarily unavailable."
+        );
       }
 
       if (
-        new Date(
-          session.expires_at
-        ) <= now()
+        session.start_ip &&
+        session.start_ip !==
+          clientIp(req)
       ) {
-        return res
-          .status(410)
-          .type("html")
-          .send(
-            errorPage(
-              "Session expired.",
-              "Create a new key request.",
-              uid
-            )
-          );
+        console.warn(
+          "LINKVERTISE_IP_CHANGED",
+          {
+            sid,
+            uid,
+            startIp:
+              session.start_ip,
+            finishIp:
+              clientIp(req),
+          }
+        );
       }
 
-      if (
-        !session.completed
-      ) {
-        const completedAt =
-          now();
-
-        const {
-          error:
-            updateError,
-        } = await supabase
-          .from(
-            "key_sessions"
-          )
-          .update({
-            completed:
-              true,
-
-            completed_at:
-              completedAt
-                .toISOString(),
-          })
-          .eq("sid", sid)
-          .eq("uid", uid);
-
-        if (updateError) {
-          console.error(
-            "LINKVERTISE_SESSION_UPDATE_ERROR",
-            updateError
-          );
-
-          return res
-            .status(500)
-            .type("html")
-            .send(
-              errorPage(
-                "Verification could not finish.",
-                "The key service is temporarily unavailable.",
-                uid
-              )
-            );
-        }
-      }
-
-      return res.redirect(
-        302,
-        "/complete"
-      );
+      return res.json({
+        ok: true,
+        ageSeconds:
+          flow.ageSeconds,
+      });
     } catch (error) {
       console.error(
-        "LINKVERTISE_CALLBACK_ERROR",
+        "LINKVERTISE_FINALIZE_ERROR",
         error
       );
 
-      return res
-        .status(500)
-        .type("html")
-        .send(
-          errorPage(
-            "Verification could not finish.",
-            "The key service is temporarily unavailable."
-          )
-        );
+      return jsonError(
+        res,
+        500,
+        "The key service is temporarily unavailable."
+      );
     }
   }
 );
-
 app.get(
   "/continue",
   strictLimiter,
@@ -3758,9 +4518,17 @@ app.get(
           "linkvertise" &&
         linkvertiseConfigured()
       ) {
-        return res.redirect(
-          LINKVERTISE_URL
-        );
+        return res
+          .type("html")
+          .send(
+            linkvertiseTransitionPage(
+              result.uid,
+              result.sid,
+              req.headers[
+                "user-agent"
+              ]
+            )
+          );
       }
 
       return res.redirect(
