@@ -428,6 +428,190 @@ function isAutomationUserAgent(
   );
 }
 
+function linkvertiseReturnNavigation(req) {
+  const site = String(
+    req.headers[
+      "sec-fetch-site"
+    ] || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const mode = String(
+    req.headers[
+      "sec-fetch-mode"
+    ] || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const destination = String(
+    req.headers[
+      "sec-fetch-dest"
+    ] || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (site !== "cross-site") {
+    return {
+      ok: false,
+      reason:
+        site === "none"
+          ? "direct_navigation"
+          : "invalid_navigation_source",
+      site,
+      mode,
+      destination,
+    };
+  }
+
+  if (
+    mode &&
+    mode !== "navigate"
+  ) {
+    return {
+      ok: false,
+      reason: "invalid_navigation_mode",
+      site,
+      mode,
+      destination,
+    };
+  }
+
+  if (
+    destination &&
+    destination !== "document"
+  ) {
+    return {
+      ok: false,
+      reason:
+        "invalid_navigation_destination",
+      site,
+      mode,
+      destination,
+    };
+  }
+
+  const referer = String(
+    req.headers.referer || ""
+  ).trim();
+
+  if (referer) {
+    try {
+      const host = new URL(
+        referer
+      ).hostname.toLowerCase();
+
+      const configuredHost =
+        new URL(
+          LINKVERTISE_URL
+        ).hostname.toLowerCase();
+
+      const trustedReferer =
+        host === configuredHost ||
+        host === "linkvertise.com" ||
+        host.endsWith(
+          ".linkvertise.com"
+        ) ||
+        host === "link-hub.net" ||
+        host.endsWith(
+          ".link-hub.net"
+        );
+
+      if (!trustedReferer) {
+        return {
+          ok: false,
+          reason:
+            "untrusted_return_referer",
+          site,
+          mode,
+          destination,
+          refererHost: host,
+        };
+      }
+    } catch {
+      return {
+        ok: false,
+        reason:
+          "invalid_return_referer",
+        site,
+        mode,
+        destination,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    site,
+    mode,
+    destination,
+  };
+}
+
+function makeLinkvertiseReturnProof(
+  sid,
+  uid,
+  hash,
+  userAgent
+) {
+  return hmacSha256Base64Url(
+    [
+      "linkvertise-return",
+      sid,
+      uid,
+      sha256(
+        String(hash || "")
+      ),
+      sha256(
+        normalizeUserAgent(
+          userAgent
+        )
+      ),
+    ].join(":")
+  );
+}
+
+function verifyLinkvertiseReturnProof(
+  proof,
+  sid,
+  uid,
+  hash,
+  userAgent
+) {
+  return safeEqualText(
+    proof,
+    makeLinkvertiseReturnProof(
+      sid,
+      uid,
+      hash,
+      userAgent
+    )
+  );
+}
+
+function setLinkvertiseReturnCookie(
+  res,
+  proof
+) {
+  res.append(
+    "Set-Cookie",
+    `ks_lv_return=${encodeURIComponent(
+      proof
+    )}; Path=/linkvertise; Max-Age=180; HttpOnly; Secure; SameSite=Lax`
+  );
+}
+
+function clearLinkvertiseReturnCookie(
+  res
+) {
+  res.append(
+    "Set-Cookie",
+    "ks_lv_return=; Path=/linkvertise; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+  );
+}
+
 function normalizeUid(uid) {
   uid = String(
     uid || ""
@@ -4035,6 +4219,43 @@ app.get(
           );
       }
 
+      const navigation =
+        linkvertiseReturnNavigation(
+          req
+        );
+
+      if (!navigation.ok) {
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              navigation.reason,
+            sid,
+            uid,
+            site:
+              navigation.site,
+            mode:
+              navigation.mode,
+            destination:
+              navigation.destination,
+            refererHost:
+              navigation.refererHost,
+            ip: clientIp(req),
+          }
+        );
+
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification blocked.",
+              "Open the completion only through the normal Linkvertise return. Pasted final links are blocked.",
+              uid
+            )
+          );
+      }
+
       if (
         isAutomationUserAgent(
           req.headers[
@@ -4064,6 +4285,18 @@ app.get(
             )
           );
       }
+
+      setLinkvertiseReturnCookie(
+        res,
+        makeLinkvertiseReturnProof(
+          sid,
+          uid,
+          hash,
+          req.headers[
+            "user-agent"
+          ]
+        )
+      );
 
       return res
         .type("html")
@@ -4163,6 +4396,36 @@ app.post(
         firstQueryValue(
           req.body?.hash
         );
+
+      if (
+        !hash ||
+        !verifyLinkvertiseReturnProof(
+          cookies.ks_lv_return,
+          sid,
+          uid,
+          hash,
+          req.headers[
+            "user-agent"
+          ]
+        )
+      ) {
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              "missing_return_proof",
+            sid,
+            uid,
+            ip: clientIp(req),
+          }
+        );
+
+        return jsonError(
+          res,
+          403,
+          "The Linkvertise return proof is missing. Pasted final links are blocked."
+        );
+      }
 
       const flowToken =
         firstQueryValue(
@@ -4313,6 +4576,10 @@ app.post(
       }
 
       if (session.completed) {
+        clearLinkvertiseReturnCookie(
+          res
+        );
+
         return res.json({
           ok: true,
           alreadyCompleted: true,
@@ -4411,6 +4678,10 @@ app.post(
           }
         );
       }
+
+      clearLinkvertiseReturnCookie(
+        res
+      );
 
       return res.json({
         ok: true,
