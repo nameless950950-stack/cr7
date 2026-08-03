@@ -75,7 +75,7 @@ const SESSION_TTL_MINUTES = Number(
 const LINKVERTISE_MIN_SECONDS = Math.max(
   0,
   Number(
-    process.env.LINKVERTISE_MIN_SECONDS || 20
+    process.env.LINKVERTISE_MIN_SECONDS || 35
   )
 );
 
@@ -84,6 +84,20 @@ const LINKVERTISE_FLOW_TTL_SECONDS = Math.max(
   Number(
     process.env.LINKVERTISE_FLOW_TTL_SECONDS ||
       SESSION_TTL_MINUTES * 60
+  )
+);
+
+const LINKVERTISE_GUARD_TTL_SECONDS = Math.max(
+  120,
+  Number(
+    process.env.LINKVERTISE_GUARD_TTL_SECONDS || 900
+  )
+);
+
+const LINKVERTISE_HEARTBEAT_MAX_AGE_MS = Math.max(
+  10000,
+  Number(
+    process.env.LINKVERTISE_HEARTBEAT_MAX_AGE_MS || 30000
   )
 );
 
@@ -110,6 +124,8 @@ const LOADER_CACHE_MS = Math.max(
 
 let loaderSourceCache = "";
 let loaderSourceCachedAt = 0;
+
+const linkvertiseGuards = new Map();
 
 function requireEnv(name, value) {
   if (
@@ -689,6 +705,210 @@ function clearLinkvertiseReturnCookie(
     "Set-Cookie",
     "ks_lv_return=; Path=/linkvertise; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
   );
+}
+
+function cleanupLinkvertiseGuards() {
+  const cutoff =
+    Date.now() -
+    LINKVERTISE_GUARD_TTL_SECONDS * 1000;
+
+  for (const [sid, guard] of linkvertiseGuards) {
+    if (
+      !guard ||
+      guard.createdAt < cutoff ||
+      guard.consumed
+    ) {
+      linkvertiseGuards.delete(sid);
+    }
+  }
+}
+
+function createLinkvertiseGuard(
+  sid,
+  uid,
+  userAgent
+) {
+  cleanupLinkvertiseGuards();
+
+  const token =
+    crypto.randomBytes(32)
+      .toString("base64url");
+
+  linkvertiseGuards.set(
+    sid,
+    {
+      sid,
+      uid,
+      tokenHash: sha256(token),
+      userAgentHash: sha256(
+        userAgentBinding(userAgent)
+      ),
+      createdAt: Date.now(),
+      lastHeartbeatAt: Date.now(),
+      heartbeatCount: 0,
+      popupNonce: "",
+      popupOpenedAt: 0,
+      callbackNonce: "",
+      callbackHash: "",
+      callbackSeenAt: 0,
+      consumed: false,
+    }
+  );
+
+  return token;
+}
+
+function getLinkvertiseGuard(
+  sid,
+  uid,
+  token = ""
+) {
+  cleanupLinkvertiseGuards();
+
+  const guard =
+    linkvertiseGuards.get(sid);
+
+  if (
+    !guard ||
+    guard.uid !== uid ||
+    guard.consumed
+  ) {
+    return null;
+  }
+
+  if (
+    token &&
+    !safeEqualText(
+      guard.tokenHash,
+      sha256(token)
+    )
+  ) {
+    return null;
+  }
+
+  return guard;
+}
+
+function makeLinkvertisePopupTicket(
+  sid,
+  uid,
+  popupNonce
+) {
+  const payload = {
+    v: 1,
+    sid,
+    uid,
+    popupNonce,
+    exp:
+      Math.floor(Date.now() / 1000) + 90,
+  };
+
+  const encoded = Buffer.from(
+    JSON.stringify(payload)
+  ).toString("base64url");
+
+  const signature =
+    hmacSha256Base64Url(
+      `linkvertise-popup:${encoded}`
+    );
+
+  return `${encoded}.${signature}`;
+}
+
+function verifyLinkvertisePopupTicket(
+  ticket,
+  sid,
+  uid
+) {
+  const parts =
+    String(ticket || "").split(".");
+
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [encoded, signature] = parts;
+  const expected =
+    hmacSha256Base64Url(
+      `linkvertise-popup:${encoded}`
+    );
+
+  if (!safeEqualText(signature, expected)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(
+        encoded,
+        "base64url"
+      ).toString("utf8")
+    );
+
+    if (
+      !payload ||
+      payload.v !== 1 ||
+      payload.sid !== sid ||
+      payload.uid !== uid ||
+      typeof payload.popupNonce !== "string" ||
+      payload.popupNonce.length < 20 ||
+      !Number.isFinite(payload.exp) ||
+      payload.exp < Math.floor(Date.now() / 1000)
+    ) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function linkvertiseGuardHealthy(guard) {
+  if (!guard) {
+    return {
+      ok: false,
+      reason: "guard_missing",
+    };
+  }
+
+  const nowMs = Date.now();
+
+  if (
+    !guard.popupOpenedAt ||
+    !guard.popupNonce
+  ) {
+    return {
+      ok: false,
+      reason: "popup_not_opened",
+    };
+  }
+
+  if (
+    guard.heartbeatCount < 2 ||
+    nowMs - guard.lastHeartbeatAt >
+      LINKVERTISE_HEARTBEAT_MAX_AGE_MS
+  ) {
+    return {
+      ok: false,
+      reason: "guard_inactive",
+    };
+  }
+
+  if (
+    nowMs - guard.createdAt <
+      LINKVERTISE_MIN_SECONDS * 1000
+  ) {
+    return {
+      ok: false,
+      reason: "too_fast",
+      ageSeconds: Math.floor(
+        (nowMs - guard.createdAt) / 1000
+      ),
+    };
+  }
+
+  return { ok: true };
 }
 
 function normalizeUid(uid) {
@@ -2440,8 +2660,308 @@ function linkvertiseTransitionPage(
       userAgent
     );
 
-  const storageKey =
-    `nh_lv_flow:${sid}`;
+  const guardToken =
+    createLinkvertiseGuard(
+      sid,
+      uid,
+      userAgent
+    );
+
+  const channelName =
+    `nh_lv_guard:${sid}`;
+
+  const storageReturnKey =
+    `nh_lv_return:${sid}`;
+
+  const popupName =
+    `nh_linkvertise_${sid}`;
+
+  const content = `
+    <main class="page">
+      ${brand()}
+
+      <h1>Open Linkvertise</h1>
+
+      <p class="lead">
+        Keep this page open. Linkvertise will open in a separate tab.
+      </p>
+
+      <section class="card spot">
+        <button
+          id="openLinkvertise"
+          class="button"
+          type="button"
+        >
+          Open Linkvertise
+        </button>
+
+        <p
+          id="guardStatus"
+          class="status"
+          aria-live="polite"
+        >
+          This page must remain open until verification finishes.
+        </p>
+      </section>
+    </main>
+  `;
+
+  const script = `
+    (function () {
+      const guardToken =
+        ${JSON.stringify(guardToken)};
+
+      const flowToken =
+        ${JSON.stringify(flowToken)};
+
+      const channelName =
+        ${JSON.stringify(channelName)};
+
+      const storageReturnKey =
+        ${JSON.stringify(storageReturnKey)};
+
+      const popupName =
+        ${JSON.stringify(popupName)};
+
+      const button =
+        document.getElementById(
+          "openLinkvertise"
+        );
+
+      const status =
+        document.getElementById(
+          "guardStatus"
+        );
+
+      let popup = null;
+      let finishing = false;
+      let channel = null;
+
+      try {
+        channel =
+          new BroadcastChannel(
+            channelName
+          );
+      } catch {}
+
+      async function postJson(
+        path,
+        body
+      ) {
+        const response = await fetch(
+          path,
+          {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        const data = await response
+          .json()
+          .catch(function () {
+            return {};
+          });
+
+        if (!response.ok || !data.ok) {
+          throw new Error(
+            data.message ||
+              "Verification failed."
+          );
+        }
+
+        return data;
+      }
+
+      async function heartbeat() {
+        try {
+          await postJson(
+            "/linkvertise/guard/heartbeat",
+            { guardToken: guardToken }
+          );
+        } catch {}
+      }
+
+      heartbeat();
+      setInterval(heartbeat, 3000);
+
+      async function finish(data) {
+        if (
+          finishing ||
+          !data ||
+          typeof data.hash !== "string" ||
+          typeof data.callbackNonce !== "string"
+        ) {
+          return;
+        }
+
+        finishing = true;
+        button.disabled = true;
+        status.textContent =
+          "Finishing secure verification...";
+
+        try {
+          await postJson(
+            "/linkvertise/finalize",
+            {
+              hash: data.hash,
+              callbackNonce:
+                data.callbackNonce,
+              guardToken: guardToken,
+              flowToken: flowToken,
+            }
+          );
+
+          try {
+            if (channel) {
+              channel.postMessage({
+                type: "nh-linkvertise-done",
+              });
+            }
+          } catch {}
+
+          try {
+            localStorage.removeItem(
+              storageReturnKey
+            );
+          } catch {}
+
+          window.location.replace(
+            "/complete"
+          );
+        } catch (error) {
+          finishing = false;
+          button.disabled = false;
+          status.textContent =
+            error.message ||
+              "Verification failed.";
+          status.className =
+            "status bad";
+        }
+      }
+
+      if (channel) {
+        channel.onmessage =
+          function (event) {
+            const data = event.data || {};
+
+            if (
+              data.type ===
+              "nh-linkvertise-return"
+            ) {
+              finish(data);
+            }
+          };
+      }
+
+      window.addEventListener(
+        "message",
+        function (event) {
+          if (
+            event.origin !==
+              window.location.origin ||
+            !event.data ||
+            event.data.type !==
+              "nh-linkvertise-return"
+          ) {
+            return;
+          }
+
+          finish(event.data);
+        }
+      );
+
+      window.addEventListener(
+        "storage",
+        function (event) {
+          if (
+            event.key !==
+              storageReturnKey ||
+            !event.newValue
+          ) {
+            return;
+          }
+
+          try {
+            finish(
+              JSON.parse(event.newValue)
+            );
+          } catch {}
+        }
+      );
+
+      button.addEventListener(
+        "click",
+        async function () {
+          button.disabled = true;
+          status.textContent =
+            "Opening Linkvertise...";
+
+          popup = window.open(
+            "about:blank",
+            popupName
+          );
+
+          if (!popup) {
+            button.disabled = false;
+            status.textContent =
+              "Allow pop-ups and try again.";
+            status.className =
+              "status bad";
+            return;
+          }
+
+          try {
+            const data = await postJson(
+              "/linkvertise/guard/open",
+              { guardToken: guardToken }
+            );
+
+            popup.location.replace(
+              data.popupUrl
+            );
+
+            status.textContent =
+              "Complete Linkvertise in the new tab. Keep this page open.";
+            status.className =
+              "status good";
+          } catch (error) {
+            try {
+              popup.close();
+            } catch {}
+
+            button.disabled = false;
+            status.textContent =
+              error.message ||
+                "Could not open Linkvertise.";
+            status.className =
+              "status bad";
+          }
+        }
+      );
+    })();
+  `;
+
+  return page(
+    "Open Linkvertise · Nameless Hub",
+    "Secure Linkvertise verification.",
+    content,
+    script,
+    "/get-key"
+  );
+}
+
+function linkvertisePopupPage(
+  sid,
+  popupNonce
+) {
+  const popupKey =
+    `nh_lv_popup:${sid}`;
 
   const content = `
     <main class="page">
@@ -2449,22 +2969,12 @@ function linkvertiseTransitionPage(
 
       <h1>Opening Linkvertise</h1>
 
-      <p class="lead">
-        Keep this tab open and complete the steps normally.
-      </p>
-
       <section class="card spot">
         <div class="loader-wrap">
           <div>
             <div class="loader"></div>
-
-            <strong>
-              Preparing secure verification
-            </strong>
-
-            <p>
-              You will be redirected automatically.
-            </p>
+            <strong>Preparing secure tab</strong>
+            <p>You will be redirected automatically.</p>
           </div>
         </div>
       </section>
@@ -2473,51 +2983,27 @@ function linkvertiseTransitionPage(
 
   const script = `
     (function () {
-      const storageKey =
-        ${JSON.stringify(storageKey)};
-
-      const flowToken =
-        ${JSON.stringify(flowToken)};
-
-      const target =
-        ${JSON.stringify(LINKVERTISE_URL)};
-
       try {
         sessionStorage.setItem(
-          storageKey,
-          flowToken
+          ${JSON.stringify(popupKey)},
+          ${JSON.stringify(popupNonce)}
         );
       } catch {}
 
-      try {
-        localStorage.setItem(
-          storageKey,
-          flowToken
+      setTimeout(function () {
+        window.location.replace(
+          ${JSON.stringify(LINKVERTISE_URL)}
         );
-      } catch {}
-
-      try {
-        window.name =
-          "nhlv:" + flowToken;
-      } catch {}
-
-      setTimeout(
-        function () {
-          window.location.replace(
-            target
-          );
-        },
-        250
-      );
+      }, 120);
     })();
   `;
 
   return page(
     "Opening Linkvertise · Nameless Hub",
-    "Preparing secure Linkvertise verification.",
+    "Preparing secure Linkvertise tab.",
     content,
     script,
-    "/get-key"
+    "/linkvertise/popup"
   );
 }
 
@@ -2526,39 +3012,31 @@ function linkvertiseCallbackPage(
   uid,
   hash
 ) {
-  const storageKey =
-    `nh_lv_flow:${sid}`;
+  const popupKey =
+    `nh_lv_popup:${sid}`;
+
+  const channelName =
+    `nh_lv_guard:${sid}`;
+
+  const storageReturnKey =
+    `nh_lv_return:${sid}`;
 
   const content = `
     <main class="page">
       ${brand()}
 
-      <h1 id="title">
-        Checking Linkvertise
-      </h1>
+      <h1 id="title">Checking Linkvertise</h1>
 
-      <p
-        id="lead"
-        class="lead"
-      >
-        Confirming that this return came from the original browser tab.
+      <p id="lead" class="lead">
+        Confirming this callback came from the protected Linkvertise tab.
       </p>
 
-      <section
-        id="loading"
-        class="card spot"
-      >
+      <section class="card spot">
         <div class="loader-wrap">
           <div>
             <div class="loader"></div>
-
-            <strong>
-              Secure verification
-            </strong>
-
-            <p id="status">
-              Checking completion.
-            </p>
+            <strong>Secure verification</strong>
+            <p id="status">Checking completion.</p>
           </div>
         </div>
       </section>
@@ -2567,147 +3045,140 @@ function linkvertiseCallbackPage(
 
   const script = `
     (function () {
-      const storageKey =
-        ${JSON.stringify(storageKey)};
+      const popupKey =
+        ${JSON.stringify(popupKey)};
+
+      const channelName =
+        ${JSON.stringify(channelName)};
+
+      const storageReturnKey =
+        ${JSON.stringify(storageReturnKey)};
 
       const hash =
         ${JSON.stringify(String(hash))};
 
       const status =
-        document.getElementById(
-          "status"
-        );
-
+        document.getElementById("status");
       const title =
-        document.getElementById(
-          "title"
-        );
-
+        document.getElementById("title");
       const lead =
-        document.getElementById(
-          "lead"
-        );
-
-      function getFlowToken() {
-        let token = "";
-
-        try {
-          token =
-            sessionStorage.getItem(
-              storageKey
-            ) || "";
-        } catch {}
-
-        if (!token) {
-          try {
-            token =
-              localStorage.getItem(
-                storageKey
-              ) || "";
-          } catch {}
-        }
-
-        if (
-          !token &&
-          typeof window.name ===
-            "string" &&
-          window.name.startsWith(
-            "nhlv:"
-          )
-        ) {
-          token =
-            window.name.slice(5);
-        }
-
-        return token;
-      }
+        document.getElementById("lead");
 
       function fail(message) {
         title.textContent =
           "Verification blocked";
-
         lead.textContent =
-          "Start a new request and complete Linkvertise in the same browser.";
-
-        status.textContent =
-          message;
+          "Open Linkvertise from the protected Nameless Hub page and keep that page open.";
+        status.textContent = message;
       }
 
-      async function finish() {
-        const flowToken =
-          getFlowToken();
+      async function run() {
+        let popupNonce = "";
 
-        if (!flowToken) {
+        try {
+          popupNonce =
+            sessionStorage.getItem(
+              popupKey
+            ) || "";
+        } catch {}
+
+        if (!popupNonce) {
           fail(
-            "The original browser proof is missing. Start Linkvertise again from the Get Key page."
+            "This callback was opened outside the protected Linkvertise tab. Bypass links are not accepted."
           );
-
           return;
         }
 
         try {
-          const response =
-            await fetch(
-              "/linkvertise/finalize",
-              {
-                method: "POST",
-                credentials:
-                  "include",
-                cache:
-                  "no-store",
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-                body:
-                  JSON.stringify({
-                    hash,
-                    flowToken,
-                  }),
-              }
-            );
+          const response = await fetch(
+            "/linkvertise/guard/callback",
+            {
+              method: "POST",
+              credentials: "include",
+              cache: "no-store",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                hash: hash,
+                popupNonce: popupNonce,
+              }),
+            }
+          );
 
-          const data =
-            await response
-              .json()
-              .catch(
-                function () {
-                  return {};
-                }
-              );
+          const data = await response
+            .json()
+            .catch(function () {
+              return {};
+            });
 
-          if (
-            !response.ok ||
-            !data.ok
-          ) {
+          if (!response.ok || !data.ok) {
             fail(
               data.message ||
-                "Linkvertise verification failed."
+                "Secure callback verification failed."
             );
-
             return;
           }
 
+          const message = {
+            type: "nh-linkvertise-return",
+            hash: hash,
+            callbackNonce:
+              data.callbackNonce,
+          };
+
           try {
-            sessionStorage.removeItem(
-              storageKey
-            );
+            const channel =
+              new BroadcastChannel(
+                channelName
+              );
 
-            localStorage.removeItem(
-              storageKey
-            );
+            channel.postMessage(message);
 
-            if (
-              window.name ===
-              "nhlv:" + flowToken
-            ) {
-              window.name = "";
+            channel.onmessage =
+              function (event) {
+                if (
+                  event.data &&
+                  event.data.type ===
+                    "nh-linkvertise-done"
+                ) {
+                  try {
+                    sessionStorage.removeItem(
+                      popupKey
+                    );
+                  } catch {}
+
+                  window.close();
+                }
+              };
+          } catch {}
+
+          try {
+            if (window.opener) {
+              window.opener.postMessage(
+                message,
+                window.location.origin
+              );
             }
           } catch {}
 
-          window.location.replace(
-            "/complete"
-          );
+          try {
+            localStorage.setItem(
+              storageReturnKey,
+              JSON.stringify(message)
+            );
+            localStorage.removeItem(
+              storageReturnKey
+            );
+          } catch {}
+
+          title.textContent =
+            "Return to Nameless Hub";
+          lead.textContent =
+            "Verification is finishing in the original tab.";
+          status.textContent =
+            "Do not close the original Nameless Hub page.";
         } catch {
           fail(
             "The key server could not be reached."
@@ -2715,7 +3186,7 @@ function linkvertiseCallbackPage(
         }
       }
 
-      finish();
+      run();
     })();
   `;
 
@@ -4246,6 +4717,230 @@ async function verifyLinkvertiseHash(
   }
 }
 
+app.post(
+  "/linkvertise/guard/heartbeat",
+  strictLimiter,
+  (req, res) => {
+    const cookies = parseCookies(req);
+    const sid = normalizeSid(cookies.ks_sid);
+    const uid = normalizeUid(cookies.ks_uid);
+    const guardToken = firstQueryValue(
+      req.body?.guardToken
+    );
+
+    const guard =
+      sid && uid
+        ? getLinkvertiseGuard(
+            sid,
+            uid,
+            guardToken
+          )
+        : null;
+
+    if (!guard) {
+      return jsonError(
+        res,
+        403,
+        "Protected Linkvertise page expired. Start again."
+      );
+    }
+
+    guard.lastHeartbeatAt = Date.now();
+    guard.heartbeatCount += 1;
+
+    return res.json({ ok: true });
+  }
+);
+
+app.post(
+  "/linkvertise/guard/open",
+  strictLimiter,
+  (req, res) => {
+    const cookies = parseCookies(req);
+    const sid = normalizeSid(cookies.ks_sid);
+    const uid = normalizeUid(cookies.ks_uid);
+    const guardToken = firstQueryValue(
+      req.body?.guardToken
+    );
+
+    const guard =
+      sid && uid
+        ? getLinkvertiseGuard(
+            sid,
+            uid,
+            guardToken
+          )
+        : null;
+
+    if (!guard) {
+      return jsonError(
+        res,
+        403,
+        "Protected Linkvertise page expired. Start again."
+      );
+    }
+
+    guard.popupNonce =
+      crypto.randomBytes(24)
+        .toString("base64url");
+    guard.popupOpenedAt = Date.now();
+    guard.lastHeartbeatAt = Date.now();
+
+    const ticket =
+      makeLinkvertisePopupTicket(
+        sid,
+        uid,
+        guard.popupNonce
+      );
+
+    return res.json({
+      ok: true,
+      popupUrl:
+        "/linkvertise/popup?ticket=" +
+        encodeURIComponent(ticket),
+    });
+  }
+);
+
+app.get(
+  "/linkvertise/popup",
+  strictLimiter,
+  (req, res) => {
+    const cookies = parseCookies(req);
+    const sid = normalizeSid(cookies.ks_sid);
+    const uid = normalizeUid(cookies.ks_uid);
+    const ticket = firstQueryValue(
+      req.query.ticket
+    );
+
+    const payload =
+      sid && uid
+        ? verifyLinkvertisePopupTicket(
+            ticket,
+            sid,
+            uid
+          )
+        : null;
+
+    const guard =
+      payload
+        ? getLinkvertiseGuard(
+            sid,
+            uid
+          )
+        : null;
+
+    if (
+      !payload ||
+      !guard ||
+      !safeEqualText(
+        payload.popupNonce,
+        guard.popupNonce
+      )
+    ) {
+      return res
+        .status(403)
+        .type("html")
+        .send(
+          errorPage(
+            "Protected tab expired.",
+            "Return to the original Nameless Hub page and open Linkvertise again.",
+            uid
+          )
+        );
+    }
+
+    res.setHeader(
+      "Cache-Control",
+      "no-store"
+    );
+
+    return res
+      .type("html")
+      .send(
+        linkvertisePopupPage(
+          sid,
+          guard.popupNonce
+        )
+      );
+  }
+);
+
+app.post(
+  "/linkvertise/guard/callback",
+  strictLimiter,
+  (req, res) => {
+    const cookies = parseCookies(req);
+    const sid = normalizeSid(cookies.ks_sid);
+    const uid = normalizeUid(cookies.ks_uid);
+    const hash = firstQueryValue(
+      req.body?.hash
+    );
+    const popupNonce = firstQueryValue(
+      req.body?.popupNonce
+    );
+
+    const guard =
+      sid && uid
+        ? getLinkvertiseGuard(
+            sid,
+            uid
+          )
+        : null;
+
+    const health =
+      linkvertiseGuardHealthy(guard);
+
+    if (
+      !guard ||
+      !health.ok ||
+      !hash ||
+      !popupNonce ||
+      !safeEqualText(
+        popupNonce,
+        guard.popupNonce
+      ) ||
+      !verifyLinkvertiseReturnProof(
+        cookies.ks_lv_return,
+        sid,
+        uid,
+        hash,
+        req.headers["user-agent"]
+      )
+    ) {
+      console.warn(
+        "LINKVERTISE_BYPASS_BLOCKED",
+        {
+          reason:
+            health.reason ||
+            "invalid_protected_popup",
+          sid,
+          uid,
+          ip: clientIp(req),
+        }
+      );
+
+      return jsonError(
+        res,
+        403,
+        "This completion did not return through the protected Linkvertise tab."
+      );
+    }
+
+    guard.callbackNonce =
+      crypto.randomBytes(24)
+        .toString("base64url");
+    guard.callbackHash = sha256(hash);
+    guard.callbackSeenAt = Date.now();
+
+    return res.json({
+      ok: true,
+      callbackNonce:
+        guard.callbackNonce,
+    });
+  }
+);
+
 app.get(
   "/linkvertise/callback",
   strictLimiter,
@@ -4520,6 +5215,64 @@ app.post(
           req.body?.hash
         );
 
+      const guardToken =
+        firstQueryValue(
+          req.body?.guardToken
+        );
+
+      const callbackNonce =
+        firstQueryValue(
+          req.body?.callbackNonce
+        );
+
+      const guard =
+        getLinkvertiseGuard(
+          sid,
+          uid,
+          guardToken
+        );
+
+      const guardHealth =
+        linkvertiseGuardHealthy(
+          guard
+        );
+
+      if (
+        !guard ||
+        !guardHealth.ok ||
+        !callbackNonce ||
+        !safeEqualText(
+          callbackNonce,
+          guard.callbackNonce
+        ) ||
+        !hash ||
+        !safeEqualText(
+          sha256(hash),
+          guard.callbackHash
+        ) ||
+        Date.now() -
+          guard.callbackSeenAt >
+          90000
+      ) {
+        console.warn(
+          "LINKVERTISE_BYPASS_BLOCKED",
+          {
+            reason:
+              guardHealth.reason ||
+              "missing_guard_callback",
+            sid,
+            uid,
+            ip: clientIp(req),
+          }
+        );
+
+        return jsonError(
+          res,
+          403,
+          "The protected Linkvertise tab proof is missing or expired."
+        );
+      }
+
       if (
         !hash ||
         !verifyLinkvertiseReturnProof(
@@ -4783,6 +5536,9 @@ app.post(
           "The key service is temporarily unavailable."
         );
       }
+
+      guard.consumed = true;
+      linkvertiseGuards.delete(sid);
 
       if (
         session.start_ip &&
