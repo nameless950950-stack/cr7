@@ -95,6 +95,9 @@ const LOADER_CACHE_MS = Math.max(
 
 let loaderSourceCache = "";
 let loaderSourceCachedAt = 0;
+let loaderExecutionCountCache = null;
+let loaderStatsQueue = Promise.resolve();
+const loaderStatsClients = new Set();
 
 function requireEnv(name, value) {
   if (
@@ -2504,6 +2507,120 @@ async function getLoaderSource() {
   }
 }
 
+
+async function fetchLoaderExecutionCount() {
+  const { count, error } = await supabase
+    .from("postbacks")
+    .select("id", { count: "exact", head: true })
+    .contains("query", { type: "loader_execution" });
+
+  if (error) throw error;
+  return Number(count || 0);
+}
+
+function broadcastLoaderStats(count) {
+  const payload = `data: ${JSON.stringify({
+    count,
+    updatedAt: new Date().toISOString(),
+  })}\n\n`;
+
+  for (const client of loaderStatsClients) {
+    try {
+      client.write(payload);
+    } catch (_) {
+      loaderStatsClients.delete(client);
+    }
+  }
+}
+
+function recordLoaderExecution(req) {
+  const run = async () => {
+    if (loaderExecutionCountCache === null) {
+      loaderExecutionCountCache = await fetchLoaderExecutionCount();
+    }
+
+    const { error } = await supabase
+      .from("postbacks")
+      .insert({
+        unique_id: `loader:${crypto.randomUUID()}`,
+        sid: crypto.randomUUID(),
+        uid: null,
+        request_ip: clientIp(req),
+        query: {
+          type: "loader_execution",
+          userAgent: normalizeUserAgent(req.headers["user-agent"]),
+          createdAt: new Date().toISOString(),
+        },
+      });
+
+    if (error) throw error;
+
+    loaderExecutionCountCache += 1;
+    broadcastLoaderStats(loaderExecutionCountCache);
+    return loaderExecutionCountCache;
+  };
+
+  loaderStatsQueue = loaderStatsQueue.catch(() => {}).then(run);
+  return loaderStatsQueue;
+}
+
+function statsPage() {
+  return `
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Nameless Hub Stats</title>
+<style>
+*{box-sizing:border-box}html,body{width:100%;min-height:100%;margin:0;background:#050506;color:#f5f5f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100svh;display:grid;place-items:center;overflow:hidden}.shell{width:min(92vw,620px);text-align:center}.eyebrow{margin:0 0 18px;color:#85858f;font-size:12px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}
+.counter{position:relative;height:clamp(86px,18vw,138px);overflow:hidden}.number{position:absolute;inset:0;display:grid;place-items:center;font-size:clamp(72px,18vw,136px);font-weight:800;letter-spacing:-.07em;line-height:1;font-variant-numeric:tabular-nums;transform:translateY(0) scale(1);opacity:1;will-change:transform,opacity}
+.number.old{animation:oldOut .5s cubic-bezier(.22,.61,.36,1) forwards}.number.new{transform:translateY(-62%) scale(.88);opacity:0;animation:newIn .58s cubic-bezier(.16,1,.3,1) forwards}.label{margin:18px 0 0;color:#85858f;font-size:14px}
+.status{width:7px;height:7px;margin:22px auto 0;border-radius:999px;background:#8fe3ae;box-shadow:0 0 18px rgba(143,227,174,.55);transition:opacity .25s ease}.status.offline{opacity:.28;box-shadow:none}
+@keyframes oldOut{to{transform:translateY(62%) scale(.88);opacity:0}}@keyframes newIn{to{transform:translateY(0) scale(1);opacity:1}}@media(prefers-reduced-motion:reduce){.number.old,.number.new{animation-duration:.01ms}}
+</style>
+</head>
+<body>
+<main class="shell">
+<p class="eyebrow">Nameless Hub</p>
+<div id="counter" class="counter" aria-live="polite"><div class="number">0</div></div>
+<p class="label">loader executions</p>
+<div id="status" class="status offline" aria-label="Live connection status"></div>
+</main>
+<script>
+const counter=document.getElementById("counter");
+const status=document.getElementById("status");
+let currentValue=null;
+let animationTimer=null;
+function formatCount(value){return new Intl.NumberFormat("en-US").format(Number(value||0))}
+function showCount(value,animate){
+  const nextValue=Number(value||0);
+  if(currentValue===nextValue)return;
+  const active=counter.querySelector(".number:not(.old)");
+  const next=document.createElement("div");
+  next.className=animate?"number new":"number";
+  next.textContent=formatCount(nextValue);
+  if(active&&animate)active.classList.add("old");else if(active)active.remove();
+  counter.appendChild(next);
+  currentValue=nextValue;
+  clearTimeout(animationTimer);
+  animationTimer=setTimeout(function(){
+    counter.querySelectorAll(".number.old").forEach(function(node){node.remove()});
+    next.classList.remove("new");
+  },650);
+}
+fetch("/api/stats",{cache:"no-store"}).then(r=>r.json()).then(data=>showCount(data.count,false)).catch(()=>{});
+const events=new EventSource("/stats/events");
+events.onopen=()=>status.classList.remove("offline");
+events.onerror=()=>status.classList.add("offline");
+events.onmessage=function(event){try{const data=JSON.parse(event.data);showCount(data.count,currentValue!==null)}catch(_){}};
+</script>
+</body>
+</html>`;
+}
+
 function isOldRenderHost(req) {
   const host = String(
     req.hostname ||
@@ -2599,6 +2716,52 @@ app.get(
   }
 );
 
+
+app.get("/stats", (req, res) => {
+  if (isOldRenderHost(req)) return redirectToPublicOrigin(req, res);
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(200).type("html").send(statsPage());
+});
+
+app.get("/api/stats", async (req, res) => {
+  try {
+    if (loaderExecutionCountCache === null) {
+      loaderExecutionCountCache = await fetchLoaderExecutionCount();
+    }
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ok: true, count: loaderExecutionCountCache });
+  } catch (error) {
+    console.error("LOADER_STATS_READ_ERROR", error);
+    return res.status(500).json({ ok: false, count: 0 });
+  }
+});
+
+app.get("/stats/events", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+  loaderStatsClients.add(res);
+
+  try {
+    if (loaderExecutionCountCache === null) {
+      loaderExecutionCountCache = await fetchLoaderExecutionCount();
+    }
+    res.write(`data: ${JSON.stringify({
+      count: loaderExecutionCountCache,
+      updatedAt: new Date().toISOString(),
+    })}\n\n`);
+  } catch (error) {
+    console.error("LOADER_STATS_STREAM_ERROR", error);
+  }
+
+  const keepAlive = setInterval(() => res.write(": keep-alive\n\n"), 20000);
+  req.on("close", () => {
+    clearInterval(keepAlive);
+    loaderStatsClients.delete(res);
+  });
+});
+
 app.get(
   "/loader",
   async (req, res) => {
@@ -2641,6 +2804,11 @@ app.get(
         "X-Content-Type-Options",
         "nosniff"
       );
+
+      recordLoaderExecution(req)
+        .catch((error) => {
+          console.error("LOADER_STATS_WRITE_ERROR", error);
+        });
 
       return res
         .status(200)
