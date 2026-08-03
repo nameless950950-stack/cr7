@@ -96,6 +96,7 @@ const LOADER_CACHE_MS = Math.max(
 let loaderSourceCache = "";
 let loaderSourceCachedAt = 0;
 let loaderExecutionCountCache = null;
+let loaderStatsLastError = null;
 let loaderStatsQueue = Promise.resolve();
 const loaderStatsClients = new Set();
 
@@ -2535,29 +2536,54 @@ function broadcastLoaderStats(count) {
 
 function recordLoaderExecution(req) {
   const run = async () => {
-    if (loaderExecutionCountCache === null) {
-      loaderExecutionCountCache = await fetchLoaderExecutionCount();
+    try {
+      if (loaderExecutionCountCache === null) {
+        loaderExecutionCountCache = await fetchLoaderExecutionCount();
+      }
+
+      const {
+        data: anchorSession,
+        error: anchorError,
+      } = await supabase
+        .from("key_sessions")
+        .select("sid,uid")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (anchorError) throw anchorError;
+
+      const eventId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const { error } = await supabase
+        .from("postbacks")
+        .insert({
+          unique_id: `loader:${eventId}`,
+          sid: anchorSession?.sid || eventId,
+          uid: anchorSession?.uid || "0",
+          lootlabs_ip: null,
+          request_ip: clientIp(req),
+          query: {
+            type: "loader_execution",
+            userAgent: normalizeUserAgent(req.headers["user-agent"]),
+            createdAt,
+          },
+          created_at: createdAt,
+        });
+
+      if (error) throw error;
+
+      loaderStatsLastError = null;
+      loaderExecutionCountCache += 1;
+      broadcastLoaderStats(loaderExecutionCountCache);
+      return loaderExecutionCountCache;
+    } catch (error) {
+      loaderStatsLastError = {
+        code: String(error?.code || "unknown").slice(0, 32),
+        message: String(error?.message || "Storage error").slice(0, 180),
+      };
+      throw error;
     }
-
-    const { error } = await supabase
-      .from("postbacks")
-      .insert({
-        unique_id: `loader:${crypto.randomUUID()}`,
-        sid: crypto.randomUUID(),
-        uid: null,
-        request_ip: clientIp(req),
-        query: {
-          type: "loader_execution",
-          userAgent: normalizeUserAgent(req.headers["user-agent"]),
-          createdAt: new Date().toISOString(),
-        },
-      });
-
-    if (error) throw error;
-
-    loaderExecutionCountCache += 1;
-    broadcastLoaderStats(loaderExecutionCountCache);
-    return loaderExecutionCountCache;
   };
 
   loaderStatsQueue = loaderStatsQueue.catch(() => {}).then(run);
@@ -2729,7 +2755,12 @@ app.get("/api/stats", async (req, res) => {
       loaderExecutionCountCache = await fetchLoaderExecutionCount();
     }
     res.setHeader("Cache-Control", "no-store");
-    return res.json({ ok: true, count: loaderExecutionCountCache });
+    return res.json({
+      ok: true,
+      count: loaderExecutionCountCache,
+      storageOk: loaderStatsLastError === null,
+      storageErrorCode: loaderStatsLastError?.code || null,
+    });
   } catch (error) {
     console.error("LOADER_STATS_READ_ERROR", error);
     return res.status(500).json({ ok: false, count: 0 });
