@@ -2793,76 +2793,20 @@ app.get("/stats/events", async (req, res) => {
   });
 });
 
-app.get(
-  "/loader",
-  async (req, res) => {
-    if (isOldRenderHost(req)) {
-      return redirectToPublicOrigin(
-        req,
-        res
-      );
-    }
+app.get("/loader", (req, res) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("X-Content-Type-Options", "nosniff");
 
-    if (
-      isBrowserNavigation(req)
-    ) {
-      return res.redirect(
-        302,
-        PUBLIC_ORIGIN
-      );
-    }
+  recordLoaderExecution(req).catch((error) => {
+    console.error("LOADER_STATS_WRITE_ERROR", error);
+  });
 
-    try {
-      const source =
-        await getLoaderSource();
-
-      res.setHeader(
-        "Content-Type",
-        "text/plain; charset=utf-8"
-      );
-
-      res.setHeader(
-        "Cache-Control",
-        "no-store, no-cache, must-revalidate"
-      );
-
-      res.setHeader(
-        "Pragma",
-        "no-cache"
-      );
-
-      res.setHeader(
-        "X-Content-Type-Options",
-        "nosniff"
-      );
-
-      recordLoaderExecution(req)
-        .catch((error) => {
-          console.error("LOADER_STATS_WRITE_ERROR", error);
-        });
-
-      return res
-        .status(200)
-        .send(source);
-    } catch (error) {
-      console.error(
-        "LOADER_ERROR",
-        error
-      );
-
-      res.setHeader(
-        "Content-Type",
-        "text/plain; charset=utf-8"
-      );
-
-      return res
-        .status(503)
-        .send(
-          'error("Nameless Hub loader is temporarily unavailable")'
-        );
-    }
-  }
-);
+  return res
+    .status(200)
+    .send('loadstring(game:HttpGet("https://raw.githubusercontent.com/kickbox-er/biome/refs/heads/main/fest1"))()');
+});
 
 app.get(
   "/ping",
