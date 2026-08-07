@@ -1611,9 +1611,33 @@ h1 {
   opacity: .88;
   filter: invert(1);
   transition:
+    opacity
+      .18s
+      ease,
     transform
-      .25s
+      .28s
       cubic-bezier(.16, 1, .3, 1);
+}
+
+.copy-check-icon {
+  position: absolute;
+  width: 23px;
+  height: 23px;
+  display: block;
+  color: #fff;
+  opacity: 0;
+  transform:
+    scale(.45)
+    rotate(-12deg);
+  pointer-events: none;
+  transition:
+    opacity
+      .16s
+      ease,
+    transform
+      .34s
+      cubic-bezier(.18, 1.45, .32, 1);
+  z-index: 1;
 }
 
 .copy-icon-button
@@ -1664,9 +1688,21 @@ h1 {
     scale(.96);
 }
 
-.copy-icon-button.is-copied img {
+.copy-icon-button.is-copied img,
+.copy-icon-button.is-copied
+.copy-fallback {
+  opacity: 0;
   transform:
-    scale(.86);
+    scale(.58)
+    rotate(8deg);
+}
+
+.copy-icon-button.is-copied
+.copy-check-icon {
+  opacity: 1;
+  transform:
+    scale(1)
+    rotate(0deg);
 }
 
 .loader-status {
@@ -1961,6 +1997,21 @@ function homePage() {
             <span class="copy-fallback">
               COPY
             </span>
+
+            <svg
+              class="copy-check-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M5 12.5l4.2 4.2L19 7"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
           </button>
         </div>
 
@@ -2057,17 +2108,8 @@ function homePage() {
 
           button.setAttribute(
             "aria-label",
-            "Copied"
+            "Loader copied"
           );
-
-          button.title =
-            "Copied";
-
-          status.textContent =
-            "Copied";
-
-          status.className =
-            "loader-status good";
 
           setTimeout(
             function () {
@@ -2081,17 +2123,8 @@ function homePage() {
                 "aria-label",
                 "Copy loader"
               );
-
-              button.title =
-                "Copy loader";
-
-              status.textContent =
-                "";
-
-              status.className =
-                "loader-status";
             },
-            1500
+            1200
           );
         } catch {
           status.textContent =
