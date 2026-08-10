@@ -688,6 +688,145 @@ async function getSessionByCookies(
   };
 }
 
+
+async function getActiveIssuedKeySession(
+  uid
+) {
+  const safeUid =
+    normalizeUid(uid);
+
+  if (!safeUid) {
+    return null;
+  }
+
+  const currentIso =
+    now().toISOString();
+
+  const {
+    data: sessions,
+    error: sessionsError,
+  } = await supabase
+    .from("key_sessions")
+    .select(
+      "sid, uid, key_hash, display_key, key_created_at, key_expires_at"
+    )
+    .eq("uid", safeUid)
+    .eq("claimed", true)
+    .not("display_key", "is", null)
+    .gt(
+      "key_expires_at",
+      currentIso
+    )
+    .order(
+      "key_created_at",
+      {
+        ascending: false,
+      }
+    )
+    .limit(10);
+
+  if (sessionsError) {
+    throw sessionsError;
+  }
+
+  const candidates =
+    (sessions || [])
+      .filter(
+        (session) =>
+          session.sid &&
+          session.key_hash &&
+          session.display_key
+      );
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const hashes =
+    candidates.map(
+      (session) =>
+        session.key_hash
+    );
+
+  const {
+    data: activeKeys,
+    error: keysError,
+  } = await supabase
+    .from("keys")
+    .select(
+      "key_hash, expires_at"
+    )
+    .eq("uid", safeUid)
+    .eq("active", true)
+    .gt(
+      "expires_at",
+      currentIso
+    )
+    .in(
+      "key_hash",
+      hashes
+    );
+
+  if (keysError) {
+    throw keysError;
+  }
+
+  const activeHashes =
+    new Set(
+      (activeKeys || [])
+        .map(
+          (keyDoc) =>
+            keyDoc.key_hash
+        )
+    );
+
+  return (
+    candidates.find(
+      (session) =>
+        activeHashes.has(
+          session.key_hash
+        )
+    ) || null
+  );
+}
+
+async function reuseActiveKeyIfAvailable(
+  res,
+  uid
+) {
+  try {
+    const existing =
+      await getActiveIssuedKeySession(
+        uid
+      );
+
+    if (!existing) {
+      return false;
+    }
+
+    setKeyCookies(
+      res,
+      existing.sid,
+      existing.uid,
+      "lootlabs"
+    );
+
+    res.redirect(
+      302,
+      "/complete?existing=1"
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "ACTIVE_KEY_LOOKUP_ERROR",
+      error
+    );
+
+    return false;
+  }
+}
+
 const publicLimiter =
   rateLimit({
     windowMs:
@@ -2957,7 +3096,7 @@ function wantsLegacyKeyFlow(
 app.get(
   "/get-key",
   strictLimiter,
-  (req, res) => {
+  async (req, res) => {
     if (isOldRenderHost(req)) {
       return redirectToPublicOrigin(
         req,
@@ -2972,6 +3111,21 @@ app.get(
         req,
         res
       );
+    }
+
+    const uid =
+      normalizeUid(
+        req.query.uid
+      );
+
+    if (
+      uid &&
+      await reuseActiveKeyIfAvailable(
+        res,
+        uid
+      )
+    ) {
+      return;
     }
 
     res.setHeader(
@@ -3015,6 +3169,15 @@ async function startKeyFlow(
             "Open the Get Key link from Nameless Hub."
           )
         );
+    }
+
+    if (
+      await reuseActiveKeyIfAvailable(
+        res,
+        uid
+      )
+    ) {
+      return;
     }
 
     if (!method) {
@@ -5035,9 +5198,14 @@ app.get(
         copyKey
       );
 
+      const existingKey =
+        new URLSearchParams(
+          window.location.search
+        ).get("existing") === "1";
+
       setTimeout(
         claim,
-        450
+        existingKey ? 0 : 450
       );
     `;
 
