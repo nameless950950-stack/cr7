@@ -53,10 +53,6 @@ const WORKINK_URL = String(
     "https://work.ink/21XS/nameless-hub"
 ).trim();
 
-const WORKINK_USER_ID = Number(
-  process.env.WORKINK_USER_ID || 484212
-);
-
 const WORKINK_OVERRIDE_URL =
   "https://work.ink/_api/v2/override";
 
@@ -4063,7 +4059,7 @@ app.get(
       const verification =
         await verifyWorkinkToken(
           token,
-          true
+          false
         );
 
       if (!verification.ok) {
@@ -4098,26 +4094,6 @@ app.get(
       const info =
         verification.info || {};
 
-      if (
-        Number.isFinite(
-          WORKINK_USER_ID
-        ) &&
-        WORKINK_USER_ID > 0 &&
-        Number(info.userId) !==
-          WORKINK_USER_ID
-      ) {
-        return res
-          .status(403)
-          .type("html")
-          .send(
-            errorPage(
-              "Verification failed.",
-              "This Work.ink token belongs to a different publisher.",
-              uid
-            )
-          );
-      }
-
       const tokenCreatedAt =
         Number(info.createdAt);
 
@@ -4143,6 +4119,25 @@ app.get(
             errorPage(
               "Verification failed.",
               "The Work.ink token was created before this key request.",
+              uid
+            )
+          );
+      }
+
+      const consumed =
+        await verifyWorkinkToken(
+          token,
+          true
+        );
+
+      if (!consumed.ok) {
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification failed.",
+              "The Work.ink token could not be finalized.",
               uid
             )
           );
