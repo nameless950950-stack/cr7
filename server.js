@@ -48,6 +48,21 @@ const LINKVERTISE_TOKEN = String(
 const LINKVERTISE_VERIFY_URL =
   "https://publisher.linkvertise.com/api/v1/anti_bypassing";
 
+const WORKINK_URL = String(
+  process.env.WORKINK_URL ||
+    "https://work.ink/21XS/nameless-hub"
+).trim();
+
+const WORKINK_USER_ID = Number(
+  process.env.WORKINK_USER_ID || 484212
+);
+
+const WORKINK_OVERRIDE_URL =
+  "https://work.ink/_api/v2/override";
+
+const WORKINK_VERIFY_URL =
+  "https://work.ink/_api/v2/token/isValid";
+
 // MAINTENANCE modes:
 // 0 = both LootLabs and Linkvertise work normally
 // 1 = LootLabs is under maintenance (shown as "Currently unavailable", disabled)
@@ -407,7 +422,8 @@ function normalizeMethod(value) {
 
   if (
     method === "lootlabs" ||
-    method === "linkvertise"
+    method === "linkvertise" ||
+    method === "workink"
   ) {
     return method;
   }
@@ -432,6 +448,196 @@ function linkvertiseConfigured() {
     LINKVERTISE_URL &&
       LINKVERTISE_TOKEN
   );
+}
+
+function workinkConfigured() {
+  return Boolean(
+    WORKINK_URL &&
+      /^https:\/\/work\.ink\//i.test(
+        WORKINK_URL
+      )
+  );
+}
+
+async function makeWorkinkUrl() {
+  if (!workinkConfigured()) {
+    throw new Error(
+      "Work.ink is not configured"
+    );
+  }
+
+  const destination =
+    `${PUBLIC_ORIGIN}/workink/callback?token={TOKEN}`;
+
+  const controller =
+    new AbortController();
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    8000
+  );
+
+  try {
+    const response = await fetch(
+      WORKINK_OVERRIDE_URL +
+        "?destination=" +
+        encodeURIComponent(
+          destination
+        ),
+      {
+        method: "GET",
+        headers: {
+          accept:
+            "application/json",
+          "user-agent":
+            "Nameless-Hub-Workink/1.0",
+        },
+        signal:
+          controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Work.ink override returned ${response.status}`
+      );
+    }
+
+    const data =
+      await response.json();
+
+    const sr = String(
+      data?.sr || ""
+    ).trim();
+
+    if (!sr) {
+      throw new Error(
+        "Work.ink override did not return sr"
+      );
+    }
+
+    const joiner =
+      WORKINK_URL.includes("?")
+        ? "&"
+        : "?";
+
+    return (
+      WORKINK_URL +
+      joiner +
+      "sr=" +
+      encodeURIComponent(sr)
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function verifyWorkinkToken(
+  token,
+  singleUse = true
+) {
+  const normalized = String(
+    token || ""
+  ).trim();
+
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalized
+    )
+  ) {
+    return {
+      ok: false,
+      reason: "invalid_token",
+    };
+  }
+
+  const controller =
+    new AbortController();
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    8000
+  );
+
+  try {
+    const url =
+      WORKINK_VERIFY_URL +
+      "/" +
+      encodeURIComponent(
+        normalized
+      ) +
+      (singleUse
+        ? "?deleteToken=1"
+        : "");
+
+    const response = await fetch(
+      url,
+      {
+        method: "GET",
+        headers: {
+          accept:
+            "application/json",
+          "user-agent":
+            "Nameless-Hub-Workink/1.0",
+        },
+        signal:
+          controller.signal,
+      }
+    );
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: "http_error",
+        status: response.status,
+      };
+    }
+
+    const data =
+      await response.json();
+
+    if (data?.valid !== true) {
+      return {
+        ok: false,
+        reason: "invalid_token",
+        info: data?.info || null,
+      };
+    }
+
+    if (
+      singleUse &&
+      data?.deleted !== true
+    ) {
+      return {
+        ok: false,
+        reason: "not_consumed",
+        info: data?.info || null,
+      };
+    }
+
+    return {
+      ok: true,
+      deleted:
+        data?.deleted === true,
+      info: data?.info || null,
+    };
+  } catch (error) {
+    console.error(
+      "WORKINK_VERIFY_ERROR",
+      error
+    );
+
+    return {
+      ok: false,
+      reason:
+        error?.name ===
+        "AbortError"
+          ? "timeout"
+          : "unavailable",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function getSessionByCookies(
@@ -2172,6 +2378,9 @@ function getKeyPage(uid) {
       ? "Currently unavailable"
       : "About 2 minutes";
 
+  const workinkStatusText =
+    "About ~1 minute";
+
   const linkvertiseStatusText =
     linkvertiseDisabled
       ? "Currently unavailable"
@@ -2299,6 +2508,39 @@ function getKeyPage(uid) {
               <span class="method-copy">
                 <strong>LootLabs</strong>
                 <span>${lootlabsStatusText}</span>
+              </span>
+
+              <span class="method-arrow">
+                ›
+              </span>
+            </label>
+
+            <label
+              class="method spot"
+            >
+              <input
+                class="method-input"
+                type="radio"
+                name="method"
+                value="workink"
+              >
+
+              <span class="method-icon">
+                <img
+                  src="https://work.ink/favicon.png"
+                  alt="Work.ink"
+                  referrerpolicy="no-referrer"
+                  onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
+                >
+
+                <span class="method-fallback">
+                  WI
+                </span>
+              </span>
+
+              <span class="method-copy">
+                <strong>Work.ink</strong>
+                <span>${workinkStatusText}</span>
               </span>
 
               <span class="method-arrow">
@@ -2678,6 +2920,9 @@ app.get(
 
         linkvertiseTokenLength:
           LINKVERTISE_TOKEN.length,
+
+        workink:
+          workinkConfigured(),
       });
   }
 );
@@ -2783,7 +3028,7 @@ async function startKeyFlow(
         .send(
           errorPage(
             "Method is unavailable.",
-            "Choose LootLabs or Linkvertise on the Get Key page.",
+            "Choose LootLabs, Linkvertise, or Work.ink on the Get Key page.",
             uid
           )
         );
@@ -2801,6 +3046,23 @@ async function startKeyFlow(
           errorPage(
             "Linkvertise is unavailable.",
             "The Linkvertise method is not configured yet.",
+            uid
+          )
+        );
+    }
+
+    if (
+      method ===
+        "workink" &&
+      !workinkConfigured()
+    ) {
+      return res
+        .status(503)
+        .type("html")
+        .send(
+          errorPage(
+            "Work.ink is unavailable.",
+            "The Work.ink method is not configured yet.",
             uid
           )
         );
@@ -2856,9 +3118,12 @@ async function startKeyFlow(
       method ===
         "linkvertise"
         ? LINKVERTISE_URL
-        : makeLootlabsUrl(
-            sid
-          );
+        : method ===
+            "workink"
+          ? await makeWorkinkUrl()
+          : makeLootlabsUrl(
+              sid
+            );
 
     const {
       error,
@@ -3652,6 +3917,287 @@ app.get(
 );
 
 app.get(
+  "/workink/callback",
+  strictLimiter,
+  async (req, res) => {
+    try {
+      if (
+        isOldRenderHost(req)
+      ) {
+        return redirectToPublicOrigin(
+          req,
+          res
+        );
+      }
+
+      res.setHeader(
+        "Cache-Control",
+        "no-store"
+      );
+
+      const cookies =
+        parseCookies(req);
+
+      const sid =
+        normalizeSid(
+          cookies.ks_sid
+        );
+
+      const uid =
+        normalizeUid(
+          cookies.ks_uid
+        );
+
+      const method =
+        normalizeMethod(
+          cookies.ks_method
+        );
+
+      if (
+        !sid ||
+        !uid ||
+        method !== "workink"
+      ) {
+        return res
+          .status(400)
+          .type("html")
+          .send(
+            errorPage(
+              "Session not found.",
+              "Start Work.ink from the Get Key page."
+            )
+          );
+      }
+
+      const {
+        data: session,
+        error: sessionError,
+      } = await supabase
+        .from("key_sessions")
+        .select("*")
+        .eq("sid", sid)
+        .eq("uid", uid)
+        .maybeSingle();
+
+      if (sessionError) {
+        console.error(
+          "WORKINK_SESSION_READ_ERROR",
+          sessionError
+        );
+
+        return res
+          .status(500)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification could not finish.",
+              "The key service is temporarily unavailable.",
+              uid
+            )
+          );
+      }
+
+      if (!session) {
+        return res
+          .status(404)
+          .type("html")
+          .send(
+            errorPage(
+              "Session not found.",
+              "Create a new key request.",
+              uid
+            )
+          );
+      }
+
+      if (session.completed) {
+        return res.redirect(
+          302,
+          "/complete"
+        );
+      }
+
+      if (
+        new Date(
+          session.expires_at
+        ) <= now()
+      ) {
+        return res
+          .status(410)
+          .type("html")
+          .send(
+            errorPage(
+              "Session expired.",
+              "Create a new key request.",
+              uid
+            )
+          );
+      }
+
+      const token =
+        firstQueryValue(
+          req.query.token
+        );
+
+      if (!token) {
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification failed.",
+              "Work.ink did not provide a verification token.",
+              uid
+            )
+          );
+      }
+
+      const verification =
+        await verifyWorkinkToken(
+          token,
+          true
+        );
+
+      if (!verification.ok) {
+        const messages = {
+          invalid_token:
+            "The Work.ink token is invalid or already used.",
+          not_consumed:
+            "The Work.ink token could not be marked as used.",
+          timeout:
+            "Work.ink verification timed out.",
+          unavailable:
+            "Work.ink verification is temporarily unavailable.",
+          http_error:
+            "Work.ink returned an HTTP error.",
+        };
+
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification failed.",
+              messages[
+                verification.reason
+              ] ||
+                "Work.ink could not confirm completion.",
+              uid
+            )
+          );
+      }
+
+      const info =
+        verification.info || {};
+
+      if (
+        Number.isFinite(
+          WORKINK_USER_ID
+        ) &&
+        WORKINK_USER_ID > 0 &&
+        Number(info.userId) !==
+          WORKINK_USER_ID
+      ) {
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification failed.",
+              "This Work.ink token belongs to a different publisher.",
+              uid
+            )
+          );
+      }
+
+      const tokenCreatedAt =
+        Number(info.createdAt);
+
+      const sessionCreatedAt =
+        new Date(
+          session.created_at
+        ).getTime();
+
+      if (
+        Number.isFinite(
+          tokenCreatedAt
+        ) &&
+        Number.isFinite(
+          sessionCreatedAt
+        ) &&
+        tokenCreatedAt <
+          sessionCreatedAt - 60000
+      ) {
+        return res
+          .status(403)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification failed.",
+              "The Work.ink token was created before this key request.",
+              uid
+            )
+          );
+      }
+
+      const completedAt =
+        now();
+
+      const {
+        error: updateError,
+      } = await supabase
+        .from("key_sessions")
+        .update({
+          completed: true,
+          completed_at:
+            completedAt
+              .toISOString(),
+        })
+        .eq("sid", sid)
+        .eq("uid", uid);
+
+      if (updateError) {
+        console.error(
+          "WORKINK_SESSION_UPDATE_ERROR",
+          updateError
+        );
+
+        return res
+          .status(500)
+          .type("html")
+          .send(
+            errorPage(
+              "Verification could not finish.",
+              "The key service is temporarily unavailable.",
+              uid
+            )
+          );
+      }
+
+      return res.redirect(
+        302,
+        "/complete"
+      );
+    } catch (error) {
+      console.error(
+        "WORKINK_CALLBACK_ERROR",
+        error
+      );
+
+      return res
+        .status(500)
+        .type("html")
+        .send(
+          errorPage(
+            "Verification could not finish.",
+            "The key service is temporarily unavailable."
+          )
+        );
+    }
+  }
+);
+
+app.get(
   "/continue",
   strictLimiter,
   async (req, res) => {
@@ -3740,6 +4286,16 @@ app.get(
       ) {
         return res.redirect(
           LINKVERTISE_URL
+        );
+      }
+
+      if (
+        method ===
+          "workink" &&
+        workinkConfigured()
+      ) {
+        return res.redirect(
+          await makeWorkinkUrl()
         );
       }
 
