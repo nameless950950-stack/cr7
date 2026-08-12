@@ -47,9 +47,6 @@ const WORKINK_URL = String(
     "https://work.ink/21XS/nameless-hub"
 ).trim();
 
-const WORKINK_OVERRIDE_URL =
-  "https://work.ink/_api/v2/override";
-
 const WORKINK_VERIFY_URL =
   "https://work.ink/_api/v2/token/isValid";
 
@@ -409,93 +406,14 @@ function workinkConfigured() {
   );
 }
 
-async function makeWorkinkUrl(sid, uid) {
+async function makeWorkinkUrl() {
   if (!workinkConfigured()) {
     throw new Error(
       "Work.ink is not configured"
     );
   }
 
-  const safeSid =
-    normalizeSid(sid);
-
-  const safeUid =
-    normalizeUid(uid);
-
-  if (!safeSid || !safeUid) {
-    throw new Error(
-      "Work.ink callback session is invalid"
-    );
-  }
-
-  const destination =
-    `${PUBLIC_ORIGIN}/workink/callback?token={TOKEN}&sid=${encodeURIComponent(
-      safeSid
-    )}&uid=${encodeURIComponent(
-      safeUid
-    )}`;
-
-  const controller =
-    new AbortController();
-
-  const timeout = setTimeout(
-    () => controller.abort(),
-    8000
-  );
-
-  try {
-    const response = await fetch(
-      WORKINK_OVERRIDE_URL +
-        "?destination=" +
-        encodeURIComponent(
-          destination
-        ),
-      {
-        method: "GET",
-        headers: {
-          accept:
-            "application/json",
-          "user-agent":
-            "Nameless-Hub-Workink/1.0",
-        },
-        signal:
-          controller.signal,
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Work.ink override returned ${response.status}`
-      );
-    }
-
-    const data =
-      await response.json();
-
-    const sr = String(
-      data?.sr || ""
-    ).trim();
-
-    if (!sr) {
-      throw new Error(
-        "Work.ink override did not return sr"
-      );
-    }
-
-    const joiner =
-      WORKINK_URL.includes("?")
-        ? "&"
-        : "?";
-
-    return (
-      WORKINK_URL +
-      joiner +
-      "sr=" +
-      encodeURIComponent(sr)
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
+  return WORKINK_URL;
 }
 
 async function verifyWorkinkToken(
@@ -3012,10 +2930,7 @@ async function startKeyFlow(
       method ===
         "linkvertise"
         ? LINKVERTISE_URL
-        : await makeWorkinkUrl(
-            sid,
-            uid
-          );
+        : await makeWorkinkUrl();
 
     const {
       error,
@@ -4209,10 +4124,7 @@ app.get(
         workinkConfigured()
       ) {
         return res.redirect(
-          await makeWorkinkUrl(
-            result.sid,
-            result.uid
-          )
+          await makeWorkinkUrl()
         );
       }
 
@@ -4220,10 +4132,7 @@ app.get(
         workinkConfigured()
       ) {
         return res.redirect(
-          await makeWorkinkUrl(
-            result.sid,
-            result.uid
-          )
+          await makeWorkinkUrl()
         );
       }
 
