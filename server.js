@@ -27,12 +27,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const LOOTLABS_BASE_URL =
-  process.env.LOOTLABS_BASE_URL;
-
-const POSTBACK_SECRET =
-  process.env.POSTBACK_SECRET;
-
 const KEY_PEPPER =
   process.env.KEY_PEPPER;
 
@@ -60,16 +54,11 @@ const WORKINK_VERIFY_URL =
   "https://work.ink/_api/v2/token/isValid";
 
 // MAINTENANCE modes:
-// 0 = both LootLabs and Linkvertise work normally
-// 1 = LootLabs is under maintenance (shown as "Currently unavailable", disabled)
-// 2 = Linkvertise is under maintenance (shown as "Currently unavailable", disabled)
+// 0 = all key methods are available
+// 2 = Linkvertise is under maintenance; Work.ink remains available
 const MAINTENANCE = Number(
   process.env.MAINTENANCE || 0
 );
-
-function lootlabsInMaintenance() {
-  return MAINTENANCE === 1;
-}
 
 function linkvertiseInMaintenance() {
   return MAINTENANCE === 2;
@@ -129,16 +118,6 @@ requireEnv(
 requireEnv(
   "SUPABASE_SERVICE_ROLE_KEY",
   SUPABASE_SERVICE_ROLE_KEY
-);
-
-requireEnv(
-  "LOOTLABS_BASE_URL",
-  LOOTLABS_BASE_URL
-);
-
-requireEnv(
-  "POSTBACK_SECRET",
-  POSTBACK_SECRET
 );
 
 requireEnv(
@@ -284,30 +263,6 @@ function makeKey() {
   );
 }
 
-function makeLootlabsUrl(sid) {
-  const base = String(
-    LOOTLABS_BASE_URL
-  ).trim();
-
-  if (base.includes("puid=")) {
-    throw new Error(
-      "LOOTLABS_BASE_URL must not contain puid="
-    );
-  }
-
-  const joiner =
-    base.includes("?")
-      ? "&"
-      : "?";
-
-  return (
-    base +
-    joiner +
-    "puid=" +
-    encodeURIComponent(sid)
-  );
-}
-
 function clientIp(req) {
   return (
     req.headers[
@@ -378,7 +333,7 @@ function setKeyCookies(
   res,
   sid,
   uid,
-  method = "lootlabs"
+  method = "linkvertise"
 ) {
   const maxAge = Math.max(
     SESSION_TTL_MINUTES *
@@ -417,7 +372,6 @@ function normalizeMethod(value) {
     .toLowerCase();
 
   if (
-    method === "lootlabs" ||
     method === "linkvertise" ||
     method === "workink"
   ) {
@@ -435,7 +389,7 @@ function getSessionMethod(req) {
     normalizeMethod(
       cookies.ks_method
     ) ||
-    "lootlabs"
+    "linkvertise"
   );
 }
 
@@ -2357,22 +2311,14 @@ function getKeyPage(uid) {
   const safeUid =
     normalizeUid(uid);
 
-  const lootlabsDisabled =
-    lootlabsInMaintenance();
-
   const linkvertiseDisabled =
     linkvertiseInMaintenance();
 
   const linkvertiseChecked =
     !linkvertiseDisabled;
 
-  const lootlabsChecked =
+  const workinkChecked =
     !linkvertiseChecked;
-
-  const lootlabsStatusText =
-    lootlabsDisabled
-      ? "Currently unavailable"
-      : "About 2 minutes";
 
   const workinkStatusText =
     "About ~1 minute";
@@ -2462,12 +2408,8 @@ function getKeyPage(uid) {
 
             <label
               class="method spot${
-                lootlabsChecked
+                workinkChecked
                   ? " is-active"
-                  : ""
-              }${
-                lootlabsDisabled
-                  ? " is-disabled"
                   : ""
               }"
             >
@@ -2475,50 +2417,12 @@ function getKeyPage(uid) {
                 class="method-input"
                 type="radio"
                 name="method"
-                value="lootlabs"
+                value="workink"
                 ${
-                  lootlabsChecked
+                  workinkChecked
                     ? "checked"
                     : ""
                 }
-                ${
-                  lootlabsDisabled
-                    ? "disabled"
-                    : ""
-                }
-              >
-
-              <span class="method-icon">
-                <img
-                  src="https://media.licdn.com/dms/image/v2/D4D0BAQFC2ErrY3XtXw/company-logo_200_200/company-logo_200_200/0/1684408131437/lootlabsgg_logo?e=2147483647&amp;v=beta&amp;t=kO3BbH2OnfQqlSm8hd1K1IhD4cJlEQgCWWDjM4DwLpE"
-                  alt="LootLabs"
-                  referrerpolicy="no-referrer"
-                  onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"
-                >
-
-                <span class="method-fallback">
-                  LL
-                </span>
-              </span>
-
-              <span class="method-copy">
-                <strong>LootLabs</strong>
-                <span>${lootlabsStatusText}</span>
-              </span>
-
-              <span class="method-arrow">
-                ›
-              </span>
-            </label>
-
-            <label
-              class="method spot"
-            >
-              <input
-                class="method-input"
-                type="radio"
-                name="method"
-                value="workink"
               >
 
               <span class="method-icon">
@@ -2906,11 +2810,6 @@ app.get(
       .json({
         ok: true,
 
-        lootlabs:
-          Boolean(
-            LOOTLABS_BASE_URL
-          ),
-
         linkvertise:
           linkvertiseConfigured(),
 
@@ -3002,7 +2901,7 @@ async function startKeyFlow(
     const method =
       normalizeMethod(
         req.query.method ||
-          "lootlabs"
+          "linkvertise"
       );
 
     if (!uid) {
@@ -3024,7 +2923,7 @@ async function startKeyFlow(
         .send(
           errorPage(
             "Method is unavailable.",
-            "Choose LootLabs, Linkvertise, or Work.ink on the Get Key page.",
+            "Choose Linkvertise or Work.ink on the Get Key page.",
             uid
           )
         );
@@ -3066,23 +2965,6 @@ async function startKeyFlow(
 
     if (
       method ===
-        "lootlabs" &&
-      lootlabsInMaintenance()
-    ) {
-      return res
-        .status(503)
-        .type("html")
-        .send(
-          errorPage(
-            "LootLabs is unavailable.",
-            "LootLabs is currently under maintenance. Please use Linkvertise instead.",
-            uid
-          )
-        );
-    }
-
-    if (
-      method ===
         "linkvertise" &&
       linkvertiseInMaintenance()
     ) {
@@ -3092,7 +2974,7 @@ async function startKeyFlow(
         .send(
           errorPage(
             "Linkvertise is unavailable.",
-            "Linkvertise is currently under maintenance. Please use LootLabs instead.",
+            "Linkvertise is currently under maintenance. Please use Work.ink instead.",
             uid
           )
         );
@@ -3114,12 +2996,7 @@ async function startKeyFlow(
       method ===
         "linkvertise"
         ? LINKVERTISE_URL
-        : method ===
-            "workink"
-          ? await makeWorkinkUrl()
-          : makeLootlabsUrl(
-              sid
-            );
+        : await makeWorkinkUrl();
 
     const {
       error,
@@ -4302,11 +4179,33 @@ app.get(
         );
       }
 
-      return res.redirect(
-        makeLootlabsUrl(
-          result.sid
-        )
-      );
+      if (
+        workinkConfigured()
+      ) {
+        return res.redirect(
+          await makeWorkinkUrl()
+        );
+      }
+
+      if (
+        linkvertiseConfigured() &&
+        !linkvertiseInMaintenance()
+      ) {
+        return res.redirect(
+          LINKVERTISE_URL
+        );
+      }
+
+      return res
+        .status(503)
+        .type("html")
+        .send(
+          errorPage(
+            "Method is unavailable.",
+            "No key method is currently available.",
+            result.uid
+          )
+        );
     } catch (error) {
       console.error(
         "CONTINUE_ERROR",
@@ -5295,266 +5194,6 @@ app.get(
     } catch (error) {
       console.error(
         "SITE_CLAIM_ERROR",
-        error
-      );
-
-      return jsonError(
-        res,
-        500,
-        "Server error"
-      );
-    }
-  }
-);
-
-app.get(
-  "/lootlabs/postback/:secret",
-  async (req, res) => {
-    try {
-      if (
-        req.params.secret !==
-        POSTBACK_SECRET
-      ) {
-        return jsonError(
-          res,
-          403,
-          "Forbidden"
-        );
-      }
-
-      const rawSid =
-        firstQueryValue(
-          req.query.click_id
-        ) ||
-        firstQueryValue(
-          req.query.puid
-        ) ||
-        firstQueryValue(
-          req.query.sid
-        );
-
-      const rawUniqueId =
-        firstQueryValue(
-          req.query.unique_id
-        ) ||
-        firstQueryValue(
-          req.query.uniqueid
-        ) ||
-        "";
-
-      const rawIp =
-        firstQueryValue(
-          req.query.ip
-        ) ||
-        "";
-
-      const sid =
-        normalizeSid(rawSid);
-
-      const uniqueId =
-        String(
-          rawUniqueId
-        ).trim();
-
-      const lootlabsIp =
-        String(
-          rawIp
-        ).trim();
-
-      if (!sid) {
-        return jsonError(
-          res,
-          400,
-          "Missing or bad click_id"
-        );
-      }
-
-      if (
-        !uniqueId ||
-        uniqueId.length >
-          200
-      ) {
-        return jsonError(
-          res,
-          400,
-          "Missing unique_id"
-        );
-      }
-
-      const {
-        data: duplicate,
-        error:
-          duplicateError,
-      } = await supabase
-        .from("postbacks")
-        .select("id")
-        .eq(
-          "unique_id",
-          uniqueId
-        )
-        .maybeSingle();
-
-      if (duplicateError) {
-        console.error(
-          "DUPLICATE_CHECK_ERROR",
-          duplicateError
-        );
-
-        return jsonError(
-          res,
-          500,
-          "Database error"
-        );
-      }
-
-      if (duplicate) {
-        return res.json({
-          ok: true,
-          duplicate: true,
-        });
-      }
-
-      const {
-        data: session,
-        error:
-          sessionError,
-      } = await supabase
-        .from(
-          "key_sessions"
-        )
-        .select("*")
-        .eq("sid", sid)
-        .maybeSingle();
-
-      if (sessionError) {
-        console.error(
-          "SESSION_READ_ERROR",
-          sessionError
-        );
-
-        return jsonError(
-          res,
-          500,
-          "Database error"
-        );
-      }
-
-      if (!session) {
-        return jsonError(
-          res,
-          404,
-          "Session not found"
-        );
-      }
-
-      if (
-        new Date(
-          session.expires_at
-        ) <= now()
-      ) {
-        return jsonError(
-          res,
-          410,
-          "Session expired"
-        );
-      }
-
-      const createdAt =
-        now();
-
-      const {
-        error:
-          postbackInsertError,
-      } = await supabase
-        .from("postbacks")
-        .insert({
-          unique_id:
-            uniqueId,
-
-          sid,
-
-          uid:
-            session.uid,
-
-          lootlabs_ip:
-            lootlabsIp,
-
-          request_ip:
-            clientIp(req),
-
-          query:
-            req.query,
-
-          created_at:
-            createdAt
-              .toISOString(),
-        });
-
-      if (
-        postbackInsertError
-      ) {
-        if (
-          postbackInsertError
-            .code ===
-          "23505"
-        ) {
-          return res.json({
-            ok: true,
-            duplicate: true,
-          });
-        }
-
-        console.error(
-          "POSTBACK_INSERT_ERROR",
-          postbackInsertError
-        );
-
-        return jsonError(
-          res,
-          500,
-          "Database error"
-        );
-      }
-
-      const {
-        error:
-          updateError,
-      } = await supabase
-        .from("key_sessions")
-        .update({
-          completed: true,
-
-          completed_at:
-            createdAt
-              .toISOString(),
-
-          lootlabs_ip:
-            lootlabsIp,
-
-          lootlabs_unique_id:
-            uniqueId,
-        })
-        .eq("sid", sid);
-
-      if (updateError) {
-        console.error(
-          "SESSION_UPDATE_ERROR",
-          updateError
-        );
-
-        return jsonError(
-          res,
-          500,
-          "Database error"
-        );
-      }
-
-      return res.json({
-        ok: true,
-      });
-    } catch (error) {
-      console.error(
-        "POSTBACK_ERROR",
         error
       );
 
