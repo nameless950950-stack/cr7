@@ -3401,10 +3401,7 @@ async function verifyLinkvertiseHash(
   }
 }
 
-app.get(
-  "/linkvertise/callback",
-  strictLimiter,
-  async (req, res) => {
+const handleLinkvertiseCallback = async (req, res) => {
     try {
       if (
         isOldRenderHost(req)
@@ -3648,7 +3645,18 @@ app.get(
           )
         );
     }
-  }
+  };
+
+app.get(
+  "/linkvertise/callback",
+  strictLimiter,
+  handleLinkvertiseCallback
+);
+
+app.get(
+  "/linkvertise/callback2",
+  strictLimiter,
+  handleLinkvertiseCallback
 );
 
 app.get(
