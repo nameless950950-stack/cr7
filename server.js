@@ -409,15 +409,31 @@ function workinkConfigured() {
   );
 }
 
-async function makeWorkinkUrl() {
+async function makeWorkinkUrl(sid, uid) {
   if (!workinkConfigured()) {
     throw new Error(
       "Work.ink is not configured"
     );
   }
 
+  const safeSid =
+    normalizeSid(sid);
+
+  const safeUid =
+    normalizeUid(uid);
+
+  if (!safeSid || !safeUid) {
+    throw new Error(
+      "Work.ink callback session is invalid"
+    );
+  }
+
   const destination =
-    `${PUBLIC_ORIGIN}/workink/callback?token={TOKEN}`;
+    `${PUBLIC_ORIGIN}/workink/callback?token={TOKEN}&sid=${encodeURIComponent(
+      safeSid
+    )}&uid=${encodeURIComponent(
+      safeUid
+    )}`;
 
   const controller =
     new AbortController();
@@ -2996,7 +3012,10 @@ async function startKeyFlow(
       method ===
         "linkvertise"
         ? LINKVERTISE_URL
-        : await makeWorkinkUrl();
+        : await makeWorkinkUrl(
+            sid,
+            uid
+          );
 
     const {
       error,
@@ -3821,23 +3840,21 @@ app.get(
 
       const sid =
         normalizeSid(
-          cookies.ks_sid
+          firstQueryValue(
+            req.query.sid
+          ) || cookies.ks_sid
         );
 
       const uid =
         normalizeUid(
-          cookies.ks_uid
-        );
-
-      const method =
-        normalizeMethod(
-          cookies.ks_method
+          firstQueryValue(
+            req.query.uid
+          ) || cookies.ks_uid
         );
 
       if (
         !sid ||
-        !uid ||
-        method !== "workink"
+        !uid
       ) {
         return res
           .status(400)
@@ -3892,6 +3909,13 @@ app.get(
       }
 
       if (session.completed) {
+        setKeyCookies(
+          res,
+          sid,
+          uid,
+          "workink"
+        );
+
         return res.redirect(
           302,
           "/complete"
@@ -4054,6 +4078,16 @@ app.get(
           );
       }
 
+      // Work.ink may return through a browser context where the original
+      // cookies were not preserved. Restore them from the callback state so
+      // /complete and subsequent API requests stay attached to this session.
+      setKeyCookies(
+        res,
+        sid,
+        uid,
+        "workink"
+      );
+
       return res.redirect(
         302,
         "/complete"
@@ -4175,7 +4209,10 @@ app.get(
         workinkConfigured()
       ) {
         return res.redirect(
-          await makeWorkinkUrl()
+          await makeWorkinkUrl(
+            result.sid,
+            result.uid
+          )
         );
       }
 
@@ -4183,7 +4220,10 @@ app.get(
         workinkConfigured()
       ) {
         return res.redirect(
-          await makeWorkinkUrl()
+          await makeWorkinkUrl(
+            result.sid,
+            result.uid
+          )
         );
       }
 
