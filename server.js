@@ -5218,7 +5218,8 @@ app.get(
       }
 
       if (
-        keyDoc.uid !== uid
+        String(keyDoc.uid) !== "0" &&
+        String(keyDoc.uid) !== uid
       ) {
         return res.json({
           ok: false,
@@ -5356,6 +5357,55 @@ app.get(
     }
   }
 );
+
+
+/**
+ * Owner-only manual key issuance. uid=0 denotes a transferable admin key.
+ * Never expose ADMIN_SECRET in a client or URL.
+ */
+app.post("/admin/keys", strictLimiter, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const supplied = String(req.headers["x-admin-secret"] || "");
+  const expected = String(ADMIN_SECRET);
+  const suppliedHash = crypto.createHash("sha256").update(supplied).digest();
+  const expectedHash = crypto.createHash("sha256").update(expected).digest();
+  if (!expected || !crypto.timingSafeEqual(suppliedHash, expectedHash)) {
+    return jsonError(res, 403, "Forbidden");
+  }
+
+  const body = req.body || {};
+  const count = body.count === undefined ? 1 : body.count;
+  const days = body.days === undefined ? 100 : body.days;
+  const uid = body.uid === undefined ? "0" : normalizeUid(body.uid);
+  if (!Number.isInteger(count) || count < 1 || count > 50 ||
+      !Number.isInteger(days) || days < 1 || days > 3650 || !uid) {
+    return jsonError(res, 400, "Use count 1-50, days 1-3650 and a valid uid");
+  }
+
+  try {
+    const createdAt = now();
+    const expiresAt = addHours(createdAt, days * 24).toISOString();
+    const keys = Array.from({ length: count }, () => makeKey());
+    const rows = keys.map(key => ({
+      key_hash: hashKey(key),
+      uid,
+      sid: null,
+      active: true,
+      created_at: createdAt.toISOString(),
+      expires_at: expiresAt,
+      used_count: 0,
+    }));
+    // A single insert makes batch issuance atomic.
+    const { error } = await supabase.from("keys").insert(rows);
+    if (error) {
+      console.error("ADMIN_KEYS_INSERT_ERROR", error.code);
+      return jsonError(res, 500, "Failed to create keys");
+    }
+    return res.status(201).json({ ok: true, keys, uid, expiresAt, days });
+  } catch {
+    return jsonError(res, 500, "Server error");
+  }
+});
 
 app.get(
   "/admin/stats",
