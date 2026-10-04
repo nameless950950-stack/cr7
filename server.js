@@ -1873,6 +1873,70 @@ h1 {
     min-height: 50px;
   }
 }
+.support-card {
+  position: relative;
+  overflow: hidden;
+  margin: -12px 0 28px;
+  padding: 17px 18px;
+  border: 1px solid rgba(255, 146, 158, .2);
+  border-radius: 22px;
+  background: linear-gradient(120deg, rgba(255, 110, 120, .09), rgba(18, 18, 21, .55));
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.support-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.support-heading strong {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+.support-tag {
+  color: #ffb2ba;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.support-card p {
+  margin: 9px 0 14px;
+  color: #aaaab3;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 146, 158, .25);
+  border-radius: 12px;
+  background: rgba(255, 146, 158, .08);
+  color: #ffe0e4;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .2s ease, border-color .2s ease;
+}
+.support-link:hover {
+  background: rgba(255, 146, 158, .16);
+  border-color: rgba(255, 146, 158, .5);
+}
+.support-link:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 3px;
+}
+.support-link svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
 `;
 
 function brand() {
@@ -2241,6 +2305,28 @@ function homePage() {
   );
 }
 
+
+function keySupport() {
+  return `
+    <aside class="support-card spot" aria-label="Support Nameless Hub">
+      <div class="support-heading">
+        <strong>A little support goes a long way</strong>
+        <span class="support-tag">rscripts</span>
+      </div>
+      <p>Follow us on rscripts and leave a like on our scripts.
+        Your support means a lot and helps Nameless Hub grow.</p>
+      <a class="support-link" href="https://rscripts.net/@trueNameless"
+         target="_blank" rel="noopener noreferrer">
+        Support @trueNameless
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M4 12 12 4M4 4h8v8" stroke="currentColor"
+                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </aside>
+  `;
+}
+
 function getKeyPage(uid) {
   const safeUid =
     normalizeUid(uid);
@@ -2266,6 +2352,7 @@ function getKeyPage(uid) {
     ? `
       <main class="page">
         ${brand()}
+        ${keySupport()}
 
         <h1>Get Key</h1>
 
@@ -2395,6 +2482,7 @@ function getKeyPage(uid) {
     : `
       <main class="page">
         ${brand()}
+        ${keySupport()}
 
         <h1>
           Open from the script
@@ -4206,6 +4294,7 @@ app.get(
     const content = `
       <main class="page">
         ${brand()}
+        ${keySupport()}
 
         <h1 id="title">
           Checking key
